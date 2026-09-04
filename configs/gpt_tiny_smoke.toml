@@ -1,0 +1,33 @@
+[model]
+vocab_size = 50257
+context_length = 128
+d_model = 128
+num_layers = 2
+num_heads = 4
+dropout = 0.0
+
+[data]
+train_path = "data/processed/shakespeare/train.pt"
+val_path = "data/processed/shakespeare/val.pt"
+tokenizer = "gpt2"
+
+[train]
+batch_size = 8
+sequence_length = 128
+micro_batch_size = 2
+learning_rate = 3e-4
+max_steps = 5
+seed = 2137
+device = "mps"
+dtype = "float32"
+
+[eval]
+interval = 100
+num_batches = 20
+
+[checkpoint]
+interval = 500
+
+[run]
+name = "gpt-tiny-shakespeare-smoke"
+output_dir = "artifacts/runs"
