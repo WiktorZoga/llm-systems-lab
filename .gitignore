@@ -12,3 +12,7 @@ __pycache__/
 # Large model/data artifacts
 data/raw
 data/processed/
+
+# Pytest and Ruff
+.pytest_cache/
+.ruff_cache/
