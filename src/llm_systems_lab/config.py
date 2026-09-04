@@ -1,6 +1,7 @@
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 
 @dataclass(frozen=True) 
@@ -41,7 +42,53 @@ class ModelConfig:
     def head_dim(self) -> int:
         return self.d_model // self.num_heads
 
-def load_model_config(path: str | Path) -> ModelConfig:
+@dataclass(frozen=True)
+class DataConfig:
+
+    train_path: str
+    val_path: str
+    tokenizer: str
+@dataclass(frozen=True)
+class TrainConfig:
+
+    batch_size: int
+    sequence_length: int
+    micro_batch_size: int
+    learning_rate: float
+    max_steps: int
+    seed: int
+    device: str
+    dtype: str
+
+    def __post_init__(self):
+        if self.batch_size <= 0:
+            raise ValueError("batch_size must be positive")
+
+        if self.micro_batch_size <= 0:
+            raise ValueError("micro_batch_size must be positive")
+                
+        if self.batch_size % self.micro_batch_size != 0:
+            raise ValueError(
+                "batch_size must be divisible by micro_batch_size"
+            )
+
+    @property
+    def gradient_accumulation_steps(self) -> int:
+        return self.batch_size // self.micro_batch_size
+
+@dataclass(frozen=True)
+class EvalConfig:
+    interval: int
+    num_batches: int
+@dataclass(frozen=True)
+class CheckpointConfig:
+    interval: int
+@dataclass(frozen=True)
+class RunConfig:
+    name: str
+    output_dir: str
+
+def load_config(config_type: str, path: str | Path):
     path = Path(path)
 
     if not path.is_file():
@@ -50,6 +97,53 @@ def load_model_config(path: str | Path) -> ModelConfig:
     with open(path, "rb") as f:
         raw_config = tomllib.load(f)
 
-    model_values = raw_config["model"]
+    config = raw_config[config_type]
 
-    return ModelConfig(**model_values)
+    config_types = {
+        "model": ModelConfig,
+        "data": DataConfig,
+        "train": TrainConfig,
+        "eval": EvalConfig,
+        "checkpoint": CheckpointConfig,
+        "run": RunConfig
+    }
+
+    return config_types[config_type](**config)
+
+@dataclass(frozen=True)
+class ExperimentConfig:
+    model: ModelConfig
+    data: DataConfig
+    train: TrainConfig
+    eval: EvalConfig
+    checkpoint: CheckpointConfig
+    run: RunConfig
+
+    def __post_init__(self):
+        if self.train.sequence_length > self.model.context_length:
+            raise ValueError(
+                "sequence_length cannot exceed context_length"
+            )
+
+
+def _load_raw_config(path: str | Path) -> dict[str, Any]:
+    path = Path(path)
+
+    if not path.is_file():
+        raise FileNotFoundError(f"Config file not found: {path}")
+
+    with open(path, "rb") as file:
+        return tomllib.load(file)
+
+
+def load_experiment_config(path: str | Path) -> ExperimentConfig:
+    raw_config = _load_raw_config(path)
+
+    return ExperimentConfig(
+        model=ModelConfig(**raw_config["model"]),
+        data=DataConfig(**raw_config["data"]),
+        train=TrainConfig(**raw_config["train"]),
+        eval=EvalConfig(**raw_config["eval"]),
+        checkpoint=CheckpointConfig(**raw_config["checkpoint"]),
+        run=RunConfig(**raw_config["run"]),
+    )

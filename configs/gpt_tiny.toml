@@ -6,12 +6,28 @@ num_layers = 2
 num_heads = 4
 dropout = 0.0
 
+[data]
+train_path = "data/processed/shakespeare/train.pt"
+val_path = "data/processed/shakespeare/val.pt"
+tokenizer = "gpt2"
+
 [train]
-micro_batch_size = 8
+batch_size = 8
 sequence_length = 128
-gradient_accumulation_steps = 1
+micro_batch_size = 2
 learning_rate = 3e-4
 max_steps = 1000
 seed = 2137
 device = "mps"
 dtype = "float32"
+
+[eval]
+interval = 100
+num_batches = 20
+
+[checkpoint]
+interval = 500
+
+[run]
+name = "gpt-tiny-shakespeare"
+output_dir = "artifacts/runs"
