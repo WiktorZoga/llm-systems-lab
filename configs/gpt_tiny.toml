@@ -1,0 +1,17 @@
+[model]
+vocab_size = 256
+context_length = 128
+d_model = 128
+num_layers = 2
+num_heads = 4
+dropout = 0.0
+
+[train]
+micro_batch_size = 8
+sequence_length = 128
+gradient_accumulation_steps = 1
+learning_rate = 3e-4
+max_steps = 1000
+seed = 2137
+device = "mps"
+dtype = "float32"

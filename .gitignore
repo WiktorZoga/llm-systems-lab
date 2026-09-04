@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+
+# Environments/
+.venv/
+.env/
+
+# macOS / editors
+.DS_Store
+.vscode/
+
+# Large model/data artifacts
+data/raw
+data/processed/
