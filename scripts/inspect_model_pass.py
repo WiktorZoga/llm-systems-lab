@@ -3,13 +3,13 @@ from pathlib import Path
 import torch
 from torch.utils.data import DataLoader
 
+from llm_systems_lab.config import load_experiment_config
 from llm_systems_lab.data.dataset import TextDataset
 from llm_systems_lab.models.gpt import GPT
-from llm_systems_lab.config import load_model_config
 
 ROOT = Path(__file__).resolve().parents[1]
 
-config = load_model_config(ROOT / "configs" / "gpt_tiny.toml")
+config = load_experiment_config(ROOT / "configs" / "gpt_tiny.toml")
 
 train_ids = torch.load(ROOT / "data" / "processed" / "shakespeare" / "train.pt")
 
@@ -29,7 +29,7 @@ print(f"targets shape: {targets.shape}")
 print(f"input_ids dtype: {input_ids.dtype}")
 print(f"targets dtype: {targets.dtype}")
 
-model = GPT(config)
+model = GPT(config.model)
 
 logits, loss = model(input_ids, targets)
 

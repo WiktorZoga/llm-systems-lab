@@ -16,3 +16,9 @@ data/processed/
 # Pytest and Ruff
 .pytest_cache/
 .ruff_cache/
+
+# Artifacts
+artifacts/
+
+# Configs
+configs/

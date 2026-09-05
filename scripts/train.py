@@ -1,15 +1,15 @@
-from pathlib import Path
-import time
-import os
 import json
+import os
+import time
+from pathlib import Path
 
 import torch
 from torch.optim import AdamW
 from torch.utils.data import DataLoader
 
 from llm_systems_lab.config import load_experiment_config
-from llm_systems_lab.data.dataset import TextDataset
 from llm_systems_lab.data.dataloader import InfiniteDataLoader
+from llm_systems_lab.data.dataset import TextDataset
 from llm_systems_lab.models.gpt import GPT
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -141,6 +141,7 @@ def main():
             "step_time_sec": dt,
             "tokens/s": tokens_per_second,
             "tokens_seen": tokens_seen,
+            "lr": optimizer.param_groups[0]['lr'],
         }
 
         if val_loss is not None:
