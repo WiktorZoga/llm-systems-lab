@@ -20,6 +20,7 @@ max_steps = 500
 seed = 2137
 device = "mps"
 dtype = "float32"
+shuffle = true
 
 [eval]
 interval = 100

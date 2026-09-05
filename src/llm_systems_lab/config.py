@@ -59,6 +59,7 @@ class TrainConfig:
     seed: int
     device: str
     dtype: str
+    shuffle: bool
 
     def __post_init__(self):
         if self.batch_size <= 0:
