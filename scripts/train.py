@@ -2,6 +2,7 @@ import json
 import os
 import time
 from pathlib import Path
+import argparse
 
 import torch
 from torch.optim import AdamW
@@ -14,8 +15,8 @@ from llm_systems_lab.models.gpt import GPT
 
 ROOT = Path(__file__).resolve().parents[1]
 
-def main():
-    config = load_experiment_config(ROOT / "configs" / "gpt_tiny_smoke.toml")
+def main(args):
+    config = load_experiment_config(ROOT / "configs" / args.config)
 
     OUTPUT_DIR = ROOT / config.run.output_dir / config.run.name
 
@@ -37,7 +38,7 @@ def main():
     train_loader = DataLoader(
         dataset=train_dataset,
         batch_size=config.train.micro_batch_size,
-        shuffle=True,
+        shuffle=config.train.shuffle,
         drop_last=True,
     )
 
@@ -151,4 +152,11 @@ def main():
         metrics_file.flush()
 
 if __name__ == "__main__":
-    main()
+
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument("--config", type=str, default="gpt_tiny.toml", help="Specify name of a config file inside configs/ dir.")
+
+    args = parser.parse_args()
+
+    main(args)
