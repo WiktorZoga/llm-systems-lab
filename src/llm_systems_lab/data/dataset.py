@@ -1,6 +1,7 @@
 import torch
 from torch.utils.data import Dataset
 
+
 class TextDataset(Dataset):
     def __init__(self, token_ids: torch.Tensor, sequence_length: int):
         if token_ids.ndim != 1:
@@ -33,4 +34,3 @@ class TextDataset(Dataset):
         targets = window[1:]
 
         return input_ids, targets
-    

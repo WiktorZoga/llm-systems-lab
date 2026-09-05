@@ -1,0 +1,34 @@
+[model]
+vocab_size = 50257
+context_length = 1024
+d_model = 768
+num_layers = 12
+num_heads = 12
+dropout = 0.0
+
+[data]
+train_path = "data/processed/shakespeare/train.pt"
+val_path = "data/processed/shakespeare/val.pt"
+tokenizer = "gpt2"
+
+[train]
+batch_size = 1
+sequence_length = 1024
+micro_batch_size = 1
+learning_rate = 3e-4
+max_steps = 1
+seed = 2137
+device = "cpu"
+dtype = "float32"
+shuffle = false
+
+[eval]
+interval = 1
+num_batches = 1
+
+[checkpoint]
+interval = 1
+
+[run]
+name = "gpt2-hf-converted"
+output_dir = "artifacts/runs"

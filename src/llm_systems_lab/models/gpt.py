@@ -9,6 +9,7 @@ from torch import nn
 
 from llm_systems_lab.config import ModelConfig
 
+
 class MultiHeadSelfAttention(nn.Module):
     """Causal multi-head self-attention used inside a Transformer block."""
 

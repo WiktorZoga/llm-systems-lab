@@ -1,24 +1,42 @@
 # Python
 __pycache__/
+*.py[cod]
+*$py.class
 
-# Environments/
+# Environments
 .venv/
+venv/
 .env/
+.env.*
+!.env.example
 
 # macOS / editors
 .DS_Store
 .vscode/
+.idea/
+*.swp
+*.swo
+*~
 
-# Large model/data artifacts
-data/raw
+# Data artifacts
+data/raw/
 data/processed/
 
-# Pytest and Ruff
+# Test and lint caches
 .pytest_cache/
 .ruff_cache/
 
-# Artifacts
+# Experiment artifacts
 artifacts/
 
-# Configs
-configs/
+# Checkpoints and profiler outputs
+checkpoints/
+profiler/
+traces/
+*.pt
+*.pth
+*.ckpt
+*.prof
+*.trace
+*.nsys-rep
+*.nsys-rep.sqlite

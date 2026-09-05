@@ -1,5 +1,6 @@
 from torch.utils.data import DataLoader
 
+
 class InfiniteDataLoader:
     def __init__(self, dataloader: DataLoader):
         self.dataloader = dataloader
