@@ -13,7 +13,7 @@ from torch.optim import AdamW
 from llm_systems_lab.config import load_experiment_config
 from llm_systems_lab.models.gpt import GPT
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 
 WORKLOADS = {
     "forward": "Training forward: full logits + cross_entropy, autograd enabled; no backward.",

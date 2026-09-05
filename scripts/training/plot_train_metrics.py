@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 
 from llm_systems_lab.config import load_experiment_config
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def main():

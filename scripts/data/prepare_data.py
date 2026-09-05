@@ -4,7 +4,7 @@ from urllib.request import urlopen
 import tiktoken
 import torch
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 
 RAW_PATH = ROOT / "data" / "raw" / "tinyshakespeare.txt"
 PROCESSED_DIR = ROOT / "data" / "processed" / "shakespeare"

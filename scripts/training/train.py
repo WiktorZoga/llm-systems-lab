@@ -13,7 +13,7 @@ from llm_systems_lab.data.dataloader import InfiniteDataLoader
 from llm_systems_lab.data.dataset import TextDataset
 from llm_systems_lab.models.gpt import GPT
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 
 def main(args):
     config = load_experiment_config(ROOT / "configs" / args.config)
