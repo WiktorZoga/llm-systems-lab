@@ -13,7 +13,7 @@ distributed training, and eventually lower-level C++/GPU programming.
 - training and overfitting scripts
 - text generation
 - GPT-2 weight import
-- synthetic benchmark for scaling experiments
+- synthetic benchmarks for scaling experiments
 - benchmark summaries and plots
 - scaling experiments over batch size, sequence length, model width, depth,
   attention heads, and vocabulary size
@@ -28,31 +28,60 @@ self-attention, MLP blocks, residual connections, and LayerNorm.
 For the current GPT-style architecture:
 
 $$
-N \approx VD + CD + L(12D^2 + 13D) + 2D
+N = VD + CD + L(12D^2 + 13D) + 2D
 $$
 
-The token embedding and language-model head use tied weights, so the vocabulary
-projection weights are counted only once.
-
-Symbols:
+where:
 
 - $V$ - vocabulary size
 - $D$ - model width
 - $C$ - maximum context length
 - $L$ - number of Transformer blocks
 
+The $12D^2$ term contains the attention and MLP weight matrices.
+The $13D$ term contains their biases and the two LayerNorms in each block.
+
+The token embedding and language-model head use tied weights, so the
+$V \times D$ weight matrix is counted only once.
+
+For example, the tiny baseline contains 6,862,464 parameters, while the
+GPT-2 124M reference configuration contains 124,439,808 parameters.
+
 ## Compute model
 
-Approximate matmul compute for one Transformer block:
+Using the convention that one multiply and one add count as two FLOPs, the
+dominant matmul compute for one Transformer block is approximately:
 
 $$
 F_{\text{block}} \approx 24BTD^2 + 4BT^2D
 $$
 
-Approximate compute for the language-model head:
+The two terms have different origins:
+
+$$
+24BTD^2
+$$
+
+comes from the QKV projection, attention output projection, and MLP, while
+
+$$
+4BT^2D
+$$
+
+comes from the two attention matrix multiplications.
+
+The language-model head costs approximately:
 
 $$
 F_{\text{lm-head}} \approx 2BTDV
+$$
+
+Therefore, the dominant matmul FLOPs for a full forward pass are approximately:
+
+$$
+F_{\text{forward}}
+\approx
+L(24BTD^2 + 4BT^2D) + 2BTDV
 $$
 
 where:
@@ -60,17 +89,26 @@ where:
 - $B$ - batch size
 - $T$ - input sequence length
 - $D$ - model width
+- $L$ - number of Transformer blocks
 - $V$ - vocabulary size
+
+These estimates count the dominant matrix multiplications only. They exclude
+operations such as LayerNorm, softmax, GELU, residual additions, bias additions,
+embedding addition, and cross-entropy.
 
 Some useful expectations:
 
-- increasing $D$ increases most Transformer block compute roughly quadratically;
-- increasing $T$ increases linear projections linearly, while attention contains
-  a quadratic $T^2$ term;
-- increasing $V$ increases both embedding parameters and vocabulary-projection
+- projection and MLP compute scale approximately as $D^2$;
+- the two main attention matrix multiplications scale as $T^2D$;
+- increasing $T$ therefore affects both linear-in-$T$ and quadratic-in-$T$
+  parts of the model;
+- increasing $V$ increases embedding parameters and language-model-head
   compute linearly;
-- theoretical FLOPs do not necessarily translate directly into execution time
-  because hardware utilization, memory traffic, kernel shapes, and overhead also matter.
+- in a tiny model with a full GPT-2 vocabulary, the language-model head can
+  represent a surprisingly large fraction of total compute;
+- theoretical FLOPs do not necessarily translate directly into execution time:
+  utilization, memory traffic, tensor shapes, kernel implementations, and
+  dispatch overhead also matter.
 
 ## Experiments
 
@@ -78,7 +116,7 @@ The first experiments study how model and workload dimensions affect:
 
 - forward latency
 - forward + backward latency
-- optimizer-step latency
+- full optimizer-step latency
 - tokens / second
 - parameter count
 
@@ -104,9 +142,9 @@ will be added here as the experiments mature.
 
 - learn the PyTorch profiler
 - understand CPU vs device time
-- inspect operators and accelerator kernels
-- study kernel launch overhead
-- identify the dominant operations in training
+- inspect operators and accelerator kernels where supported
+- study dispatch and kernel-launch overhead
+- identify dominant operations in training
 - compare profiler results with the analytical FLOP model
 - investigate memory usage and temporary tensors
 
@@ -130,7 +168,7 @@ will be added here as the experiments mature.
 
 ### 5. Multi-GPU systems
 
-- 1-GPU vs 2-GPU data parallel training
+- 1-GPU vs 2-GPU data-parallel training
 - measure scaling efficiency
 - inspect NCCL communication
 - understand gradient AllReduce
@@ -150,17 +188,18 @@ will be added here as the experiments mature.
 
 ### 7. Larger reference workloads
 
-- use GPT-2 124M as a more realistic reference model
-- compare tiny synthetic workloads with a real GPT-2-sized architecture
+- use GPT-2 124M as a more realistic reference workload
+- compare tiny synthetic workloads with a GPT-2-sized architecture
 - repeat selected performance experiments on NVIDIA GPUs
 - investigate which conclusions survive as model size increases
 
-## Educational Material
-Currently I'm slowly selfstudying from these materials:
-    - https://jax-ml.github.io/scaling-book/
-    - https://huggingface.co/spaces/nanotron/ultrascale-playbook?section=high-level_overview
-    - https://www.youtube.com/@AndrejKarpathy
-    - more soon
+## Learning resources
+
+I am currently working through:
+
+- [How to Scale Your Model](https://jax-ml.github.io/scaling-book/)
+- [Ultra-Scale Playbook](https://huggingface.co/spaces/nanotron/ultrascale-playbook)
+- [Andrej Karpathy's lectures](https://www.youtube.com/@AndrejKarpathy)
 
 ## Acknowledgements
 
