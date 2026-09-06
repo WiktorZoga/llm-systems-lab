@@ -5,12 +5,12 @@ set -e
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 
-CONFIG_DIR="configs/scaling"
+CONFIG_DIR="configs/benchmarks/scaling"
 RUN_ID="$(date +%Y-%m-%d_%H-%M-%S)"
 OUTPUT_DIR="artifacts/benchmarks/$RUN_ID"
 mkdir -p "$OUTPUT_DIR"
 
-echo "Running all configs/scaling/ benchmarks"
+echo "Running all configs/benchmarks/scaling"
 echo "Saving results to: $OUTPUT_DIR"
 
 for file in "$CONFIG_DIR"/*.toml; do

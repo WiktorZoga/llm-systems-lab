@@ -1,0 +1,17 @@
+[model]
+vocab_size = 50257
+context_length = 1024
+d_model = 768
+num_layers = 12
+num_heads = 12
+dropout = 0.0
+
+[benchmark]
+batch_size = 1
+sequence_length = 64
+warmup_iterations = 3
+iterations = 20
+learning_rate = 3e-4
+seed = 2137
+device = "mps"
+dtype = "float32"

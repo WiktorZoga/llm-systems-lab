@@ -177,7 +177,7 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     
-    parser.add_argument("--config", default="configs/scaling/baseline.toml",
+    parser.add_argument("--config", default="configs/benchmarks/scaling/baseline.toml",
                         help="Path relative or an absolute path to your config file.")
     parser.add_argument("--output-dir", default="artifacts/benchmarks/manual",
                         help="Directory for the JSON result.")
