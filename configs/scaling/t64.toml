@@ -6,29 +6,12 @@ num_layers = 2
 num_heads = 4
 dropout = 0.0
 
-[data]
-train_path = "data/processed/shakespeare/train.pt"
-val_path = "data/processed/shakespeare/val.pt"
-tokenizer = "gpt2"
-
-[train]
+[benchmark]
 batch_size = 2
 sequence_length = 64
-micro_batch_size = 2
+warmup_iterations = 5
+iterations = 100
 learning_rate = 3e-4
-max_steps = 1
 seed = 2137
 device = "mps"
 dtype = "float32"
-shuffle = false
-
-[eval]
-interval = 1
-num_batches = 1
-
-[checkpoint]
-interval = 1
-
-[run]
-name = "scaling"
-output_dir = "artifacts/benchmarks"

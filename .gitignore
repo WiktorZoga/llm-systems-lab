@@ -27,7 +27,10 @@ data/processed/
 .ruff_cache/
 
 # Experiment artifacts
-artifacts/
+# artifacts/
+artifacts/**/*.json
+!artifacts/**/*.png
+
 
 # Checkpoints and profiler outputs
 checkpoints/

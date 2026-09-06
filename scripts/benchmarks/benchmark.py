@@ -10,7 +10,7 @@ from pathlib import Path
 import torch
 from torch.optim import AdamW
 
-from llm_systems_lab.config import load_experiment_config
+from llm_systems_lab.config import load_benchmark_config
 from llm_systems_lab.models.gpt import GPT
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -29,19 +29,19 @@ def synchronize(device):
         torch.cuda.synchronize(device)
 
 
-def run_benchmark(config, warmup, iterations):
+def run_benchmark(config):
 
-    device = torch.device(config.train.device)
+    device = torch.device(config.device)
 
-    torch.manual_seed(config.train.seed)
+    torch.manual_seed(config.seed)
     if torch.backends.mps.is_available():
-        torch.mps.manual_seed(config.train.seed)
+        torch.mps.manual_seed(config.seed)
 
     # Explicit FP32
     torch.set_float32_matmul_precision("highest")
 
-    batch_size = config.train.batch_size
-    sequence_length = config.train.sequence_length
+    batch_size = config.batch_size
+    sequence_length = config.sequence_length
 
     tokens = torch.randint(config.model.vocab_size, (batch_size, sequence_length + 1))
 
@@ -50,13 +50,16 @@ def run_benchmark(config, warmup, iterations):
 
     measurements = {}
     parameter_count = None
+    warmup = config.warmup_iterations
+    iterations = config.iterations
 
     for workload in WORKLOADS:
         # Each workload starts from the same weights and synthetic batch.
+        torch.manual_seed(config.seed)
         model = GPT(config.model).to(device=device, dtype=torch.float32)
         model.train()
         optimizer = (
-            AdamW(model.parameters(), lr=config.train.learning_rate)
+            AdamW(model.parameters(), lr=config.learning_rate)
             if workload == "optimizer_step" else None
         )
         parameter_count = sum(p.numel() for p in model.parameters())
@@ -95,7 +98,19 @@ def run_benchmark(config, warmup, iterations):
         }
 
     return {
-        "config": asdict(config),
+        "config": {
+            "model": asdict(config.model),
+            "benchmark": {
+                "batch_size": config.batch_size,
+                "sequence_length": config.sequence_length,
+                "warmup_iterations": config.warmup_iterations,
+                "iterations": config.iterations,
+                "learning_rate": config.learning_rate,
+                "seed": config.seed,
+                "device": config.device,
+                "dtype": config.dtype,
+            },
+        },
         "environment": {
             "python": platform.python_version(),
             "pytorch": torch.__version__,
@@ -115,7 +130,7 @@ def run_benchmark(config, warmup, iterations):
         "tokens_per_iteration": batch_size * sequence_length,
         "parameter_count": parameter_count,
         "optimizer": {
-            "name": "AdamW", "lr": config.train.learning_rate,
+            "name": "AdamW", "lr": config.learning_rate,
             "betas": [0.9, 0.999], "eps": 1e-8, "weight_decay": 0.01,
             "foreach": False, "fused": False,
         },
@@ -124,19 +139,25 @@ def run_benchmark(config, warmup, iterations):
 
 
 def main(args):
-    config_path = ROOT / "configs" / args.config
-    config = load_experiment_config(config_path)
+    config_path = Path(args.config)
+    if not config_path.is_absolute():
+        config_path = ROOT / config_path
 
-    result = run_benchmark(config, args.warmup, args.iterations)
+    config = load_benchmark_config(config_path)
+
+    result = run_benchmark(config)
     result["config_path"] = str(config_path.resolve())
 
-    timestamp = datetime.now()
+    timestamp = datetime.now(timezone.utc)
 
     result["created_at"] = timestamp.isoformat()
 
-    output_dir = ROOT / "artifacts" / "benchmarks"
+    output_dir = Path(args.output_dir)
+    if not output_dir.is_absolute():
+        output_dir = ROOT / output_dir
+
     output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / (f"{config_path.stem}_{timestamp.strftime('%Y-%m-%d-%H-%M-%S')}.json")
+    output_path = output_dir / f"{config_path.stem}.json"
 
     with output_path.open("x", encoding="utf-8") as file:
         json.dump(result, file, indent=2)
@@ -156,9 +177,9 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     
-    parser.add_argument("--config", default="scaling/baseline.toml",
-                        help="Path relative to configs/, or an absolute path.")
-    parser.add_argument("--warmup", type=int, default=5)
-    parser.add_argument("--iterations", type=int, default=20)
+    parser.add_argument("--config", default="configs/scaling/baseline.toml",
+                        help="Path relative or an absolute path to your config file.")
+    parser.add_argument("--output-dir", default="artifacts/benchmarks/manual",
+                        help="Directory for the JSON result.")
 
     main(parser.parse_args())

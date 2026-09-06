@@ -77,6 +77,36 @@ class TrainConfig:
     def gradient_accumulation_steps(self) -> int:
         return self.batch_size // self.micro_batch_size
 
+
+@dataclass(frozen=True)
+class BenchmarkConfig:
+    model: ModelConfig
+    batch_size: int
+    sequence_length: int
+    warmup_iterations: int
+    iterations: int
+    learning_rate: float
+    seed: int
+    device: str
+    dtype: str
+
+    def __post_init__(self) -> None:
+        if self.batch_size <= 0:
+            raise ValueError("batch_size must be positive")
+
+        if self.sequence_length <= 0:
+            raise ValueError("sequence_length must be positive")
+
+        if self.sequence_length > self.model.context_length:
+            raise ValueError("sequence_length cannot exceed context_length")
+
+        if self.warmup_iterations < 0:
+            raise ValueError("warmup_iterations cannot be negative")
+
+        if self.iterations <= 0:
+            raise ValueError("iterations must be positive")
+
+
 @dataclass(frozen=True)
 class EvalConfig:
     interval: int
@@ -147,4 +177,13 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         eval=EvalConfig(**raw_config["eval"]),
         checkpoint=CheckpointConfig(**raw_config["checkpoint"]),
         run=RunConfig(**raw_config["run"]),
+    )
+
+
+def load_benchmark_config(path: str | Path) -> BenchmarkConfig:
+    raw_config = _load_raw_config(path)
+
+    return BenchmarkConfig(
+        model=ModelConfig(**raw_config["model"]),
+        **raw_config["benchmark"],
     )
