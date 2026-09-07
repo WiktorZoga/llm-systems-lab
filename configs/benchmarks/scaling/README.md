@@ -2,7 +2,7 @@
 
 All configs use the same baseline: B=2, T=128, D=128, L=2, H=4,
 V=50257, maximum context=256, dropout=0, naive attention, FP32, MPS.
-Seed=2137, 5 warmup iterations, 100 measured iterations, AdamW lr=0.0003.
+Seed=2137, 5 warmup iterations, 1000 measured iterations, AdamW lr=0.0003.
 
 | Sweep | Config values (including baseline) | Only changed field |
 |---|---|---|
@@ -61,10 +61,13 @@ uv run python scripts/benchmarks/plot_benchmarks.py --parameter num_layers --sta
 uv run python scripts/benchmarks/memory.py --config configs/benchmarks/scaling/baseline.toml --device mps --output artifacts/memory/baseline-01.json
 ```
 
-Run in a fresh process. Six synchronized snapshots cover before/after model
-creation, after optimizer creation, forward, backward and the first optimizer
-step. The batch is allocated after optimizer creation. Logits, loss and gradients
-are retained through the final snapshot. No warmup or empty_cache calls.
+Run in a fresh process. Memory is recorded across config.iterations steps,
+including startup (no discarded warmup). Use --workload forward,
+forward_backward or optimizer_step (default). --forward-no-grad runs only forward
+without autograd. Snapshots cover setup, before/after forward, backward/update
+when applicable, and after releasing logits/loss. Gradients are cleared before
+the next forward. The synthetic batch and model are reused; no empty_cache calls.
+These additional synchronizations make this a memory experiment, not a timing run.
 
 MPS tensor_bytes excludes allocator caches; driver_bytes includes caches and
 Metal framework allocations. These are device-side snapshots, not total system
