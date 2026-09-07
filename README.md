@@ -122,6 +122,8 @@ Results are saved as JSON, with CSV summaries and plots.
 See [configs and commands](configs/benchmarks/scaling/README.md).
 Memory measurements and naive vs SDPA comparisons are the next experiments.
 
+Experiment artifacts are currently kept locally and are not included in the repository.
+
 ## Roadmap
 
 - Repeat controlled scaling runs and compare them with manual FLOP predictions.
