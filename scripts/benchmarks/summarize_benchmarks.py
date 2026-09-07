@@ -27,7 +27,13 @@ def result_to_rows(path: Path) -> list[dict]:
 
     common_values = {
         "config": path.stem,
+        "source_file": str(path),
+        "created_at": result.get("created_at"),
+        "measurement_notes": result.get("measurement_notes", "legacy"),
         "device": result["environment"]["device"],
+        "pytorch": result["environment"]["pytorch"],
+        "attention_backend": model_config.get("attention_backend", "naive"),
+        "context_length": model_config["context_length"],
         "batch_size": benchmark_config["batch_size"],
         "sequence_length": benchmark_config["sequence_length"],
         "d_model": model_config["d_model"],

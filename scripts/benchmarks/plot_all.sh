@@ -56,7 +56,10 @@ plot_sweep d_model \
 plot_sweep num_layers \
     "$RUN_DIR/l1.json" \
     "$RUN_DIR/baseline.json" \
-    "$RUN_DIR/l4.json"
+    "$RUN_DIR/l4.json" \
+    "$RUN_DIR/l8.json" \
+    "$RUN_DIR/l12.json" \
+    "$RUN_DIR/l16.json"
 
 plot_sweep vocab_size \
     "$RUN_DIR/v8192.json" \

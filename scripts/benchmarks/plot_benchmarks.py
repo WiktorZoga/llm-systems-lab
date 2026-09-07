@@ -31,9 +31,31 @@ def get_parameter_value(result: dict, parameter: str):
 
 def collect_points(paths: list[Path], parameter: str):
     points = []
+    reference = None
 
     for path in paths:
         result = load_results(path)
+
+        # Everything except the sweep variable must describe the same workload.
+        fixed_config = {
+            section: dict(values) for section, values in result["config"].items()
+        }
+        fixed_config["model"].setdefault("attention_backend", "naive")
+        section, name = PARAMETERS[parameter]
+        del fixed_config[section][name]
+        conditions = {
+            "config": fixed_config,
+            "environment": result["environment"],
+            "optimizer": result.get("optimizer"),
+            "measurement_notes": result.get("measurement_notes", "legacy"),
+        }
+        if reference is None:
+            reference = conditions
+        elif conditions != reference:
+            raise ValueError(
+                f"{path}: non-sweep settings differ. Compare one variable "
+                "at a time on the same device and measurement procedure."
+            )
 
         point = {
             "value": get_parameter_value(result, parameter),
@@ -47,7 +69,7 @@ def collect_points(paths: list[Path], parameter: str):
 
     return points
 
-def plot_results(points: list[dict], parameter: str, output_path: Path):
+def plot_results(points: list[dict], parameter: str, output_path: Path, statistic="mean"):
     x_values = [point["value"] for point in points]
 
     fig, axes = plt.subplots(nrows=1, ncols=3, figsize=(15, 4))
@@ -58,7 +80,7 @@ def plot_results(points: list[dict], parameter: str, output_path: Path):
 
     for workload in WORKLOADS:
         latency_values = [
-            point["measurements"][workload]["mean_seconds"] * 1000
+            point["measurements"][workload][f"{statistic}_seconds"] * 1000
             for point in points
         ]
 
@@ -92,11 +114,11 @@ def plot_results(points: list[dict], parameter: str, output_path: Path):
         marker="o",
     )
 
-    latency_axis.set_title("Mean time")
+    latency_axis.set_title(f"{statistic.capitalize()} time")
     latency_axis.set_xlabel(parameter)
     latency_axis.set_ylabel("milliseconds")
 
-    throughput_axis.set_title("Throughput")
+    throughput_axis.set_title("Throughput (B*T / mean time)")
     throughput_axis.set_xlabel(parameter)
     throughput_axis.set_ylabel("tokens/s")
 
@@ -128,7 +150,7 @@ def main(args):
 
     points = collect_points(paths, args.parameter)
 
-    output_path = Path(args.output_dir) / f"{args.parameter}.png"
+    output_path = Path(args.output_dir) / f"{args.parameter}_{args.statistic}.png"
 
     if not output_path.is_absolute():
         output_path = ROOT / output_path
@@ -137,12 +159,14 @@ def main(args):
         points=points,
         parameter=args.parameter,
         output_path=output_path,
+        statistic=args.statistic,
     )
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     parser.add_argument("--parameter", choices=PARAMETERS, required=True)
+    parser.add_argument("--statistic", choices=["mean", "median"], default="mean")
 
     parser.add_argument("files", nargs="+", type=Path, help="Benchmark json files.")
     parser.add_argument(

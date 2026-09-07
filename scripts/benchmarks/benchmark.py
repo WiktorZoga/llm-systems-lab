@@ -1,9 +1,8 @@
 import argparse
 import json
-import platform
 import statistics
 import time
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -11,6 +10,7 @@ import torch
 from torch.optim import AdamW
 
 from llm_systems_lab.config import load_benchmark_config
+from llm_systems_lab.device import select_device, synchronize
 from llm_systems_lab.models.gpt import GPT
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -22,20 +22,11 @@ WORKLOADS = {
 }
 
 
-def synchronize(device):
-    if device.type == "mps":
-        torch.mps.synchronize()
-    elif device.type == "cuda":
-        torch.cuda.synchronize(device)
-
-
 def run_benchmark(config):
 
-    device = torch.device(config.device)
+    device = select_device(config.device)
 
     torch.manual_seed(config.seed)
-    if torch.backends.mps.is_available():
-        torch.mps.manual_seed(config.seed)
 
     # Explicit FP32
     torch.set_float32_matmul_precision("highest")
@@ -59,7 +50,10 @@ def run_benchmark(config):
         model = GPT(config.model).to(device=device, dtype=torch.float32)
         model.train()
         optimizer = (
-            AdamW(model.parameters(), lr=config.learning_rate)
+            AdamW(
+                model.parameters(), lr=config.learning_rate,
+                foreach=False, fused=False,
+            )
             if workload == "optimizer_step" else None
         )
         parameter_count = sum(p.numel() for p in model.parameters())
@@ -75,7 +69,7 @@ def run_benchmark(config):
             if optimizer is not None:
                 optimizer.zero_grad(set_to_none=True)
 
-            _, loss = model(input_ids, targets)
+            logits, loss = model(input_ids, targets)
             if workload != "forward":
                 loss.backward()
             if optimizer is not None:
@@ -83,6 +77,12 @@ def run_benchmark(config):
 
             synchronize(device)
             elapsed = time.perf_counter() - start
+
+            # Python evaluates the next model(...) before replacing logits/loss.
+            # Remove these references now so the old outputs (and saved tensors
+            # for forward-only) do not stay alive during the next forward.
+            # This happens after timing; PyTorch may keep freed memory in its cache.
+            del logits, loss
 
             if index >= warmup:
                 samples.append(elapsed)
@@ -96,6 +96,9 @@ def run_benchmark(config):
             "median_seconds": median_seconds,
             "tokens_per_second": batch_size * sequence_length / mean_seconds,
         }
+        # This workload is finished. Release its model and optimizer state
+        # before constructing a fresh model for the next workload.
+        del optimizer, model
 
     return {
         "config": {
@@ -111,20 +114,11 @@ def run_benchmark(config):
                 "dtype": config.dtype,
             },
         },
-        "environment": {
-            "python": platform.python_version(),
-            "pytorch": torch.__version__,
-            "platform": platform.platform(),
-            "machine": platform.machine(),
-            "device": str(device),
-            "device_name": (
-                torch.cuda.get_device_name(device)
-                if device.type == "cuda" else platform.processor() or platform.machine()
-            ),
-            "cuda_version": torch.version.cuda,
-            "cpu_threads": torch.get_num_threads(),
-            "float32_matmul_precision": torch.get_float32_matmul_precision(),
-        },
+        "environment": {"device": str(device), "pytorch": torch.__version__},
+        "measurement_notes": (
+            "Outputs released after each timing; AdamW foreach=False, fused=False. "
+            "Allocator caches stay warm. Compare within this measurement procedure."
+        ),
         "warmup_iterations": warmup,
         "measured_iterations": iterations,
         "tokens_per_iteration": batch_size * sequence_length,
@@ -144,6 +138,19 @@ def main(args):
         config_path = ROOT / config_path
 
     config = load_benchmark_config(config_path)
+    if args.device is not None:
+        config = replace(config, device=args.device)
+    if args.attention_backend is not None:
+        config = replace(
+            config, model=replace(config.model, attention_backend=args.attention_backend),
+        )
+
+    output_dir = Path(args.output_dir)
+    if not output_dir.is_absolute():
+        output_dir = ROOT / output_dir
+    output_path = output_dir / f"{config_path.stem}.json"
+    if output_path.exists():
+        raise FileExistsError(f"Result already exists: {output_path}; use a new output directory")
 
     result = run_benchmark(config)
     result["config_path"] = str(config_path.resolve())
@@ -152,12 +159,7 @@ def main(args):
 
     result["created_at"] = timestamp.isoformat()
 
-    output_dir = Path(args.output_dir)
-    if not output_dir.is_absolute():
-        output_dir = ROOT / output_dir
-
     output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / f"{config_path.stem}.json"
 
     with output_path.open("x", encoding="utf-8") as file:
         json.dump(result, file, indent=2)
@@ -181,5 +183,8 @@ if __name__ == "__main__":
                         help="Path relative or an absolute path to your config file.")
     parser.add_argument("--output-dir", default="artifacts/benchmarks/manual",
                         help="Directory for the JSON result.")
+    parser.add_argument("--device", help="Override config device: cpu, mps, cuda or cuda:N.")
+    parser.add_argument("--attention-backend", choices=["naive", "sdpa"],
+                        help="Override only the attention implementation for an A/B run.")
 
     main(parser.parse_args())

@@ -2,8 +2,8 @@
 vocab_size = 50257
 context_length = 256
 d_model = 128
-num_layers = 2
-num_heads = 8
+num_layers = 8
+num_heads = 4
 dropout = 0.0
 
 [benchmark]
