@@ -24,9 +24,14 @@ class MultiHeadSelfAttention(nn.Module):
         # Mix information from all attention heads back into d_model dimensions.
         self.c_proj = nn.Linear(in_features=config.d_model, out_features=config.d_model)
 
-        # Lower-triangular mask: a token may attend to itself and previous tokens,
-        # but never to tokens that occur later in the sequence.
-        self.bias = nn.Buffer(torch.tril(torch.ones(config.context_length, config.context_length)).view(1, 1, config.context_length, config.context_length))
+        if config.attention_backend == "naive":
+            # A token may attend only to itself and previous tokens.
+            # SDPA handles causality itself via is_causal=True.
+            mask = torch.tril(torch.ones(config.context_length, config.context_length))
+            self.register_buffer(
+                "bias", mask.view(1, 1, config.context_length, config.context_length),
+                persistent=False,  # Recreated on construction; not learned weights.
+            )
 
     def forward(self, x):
         """
@@ -51,15 +56,22 @@ class MultiHeadSelfAttention(nn.Module):
         k = k.view(B, T, self.config.num_heads, head_dim).transpose(1, 2)
         v = v.view(B, T, self.config.num_heads, head_dim).transpose(1, 2)
 
-        # Scaled dot-product attention produces one score for every pair of
-        # query/key positions: [B, num_heads, T, T].
-        att = (q @ k.mT) * (1.0 / math.sqrt(head_dim))
-        att = att.masked_fill(self.bias[:, :, :T, :T] == 0, float("-inf"))
-        att = F.softmax(att, dim=-1)
+        if self.config.attention_backend == "sdpa":
+            # SDPA supplies the same 1/sqrt(head_dim) scaling and causal mask.
+            # Both paths intentionally have no dropout in this baseline.
+            y = F.scaled_dot_product_attention(
+                q, k, v, is_causal=True, dropout_p=0.0,
+            )
+        else:
+            # Reference: explicitly materialize [B, num_heads, T, T] scores.
+            att = (q @ k.mT) * (1.0 / math.sqrt(head_dim))
+            att = att.masked_fill(self.bias[:, :, :T, :T] == 0, float("-inf"))
+            att = F.softmax(att, dim=-1)
+            y = att @ v
 
         # Weight values by the attention scores, then merge all heads back
         # into the original representation shape [B, T, C].
-        y = (att @ v).transpose(1, 2).contiguous().view(B, T, C)
+        y = y.transpose(1, 2).contiguous().view(B, T, C)
 
         y = self.c_proj(y)
 

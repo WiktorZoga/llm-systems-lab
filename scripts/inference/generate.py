@@ -40,6 +40,12 @@ def main(args):
             "Use a config and checkpoint from the same experiment."
         )
 
+    # Older checkpoints stored the deterministic causal masks alongside weights.
+    # The model now recreates them for naive attention; SDPA does not need them.
+    state_dict = {
+        key: value for key, value in state_dict.items()
+        if not key.endswith(".attn.bias")
+    }
     model.load_state_dict(state_dict)
 
     encoding = tiktoken.get_encoding(config.data.tokenizer)

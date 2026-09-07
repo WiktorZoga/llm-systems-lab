@@ -15,6 +15,7 @@ class ModelConfig:
     num_layers: int
     num_heads: int
     dropout: float
+    attention_backend: str = "naive"
 
     def __post_init__(self) -> None:
         if self.vocab_size <= 0:
@@ -37,6 +38,9 @@ class ModelConfig:
 
         if not 0 <= self.dropout < 1:
             raise ValueError("dropout must be in the range [0, 1)")
+
+        if self.attention_backend not in ("naive", "sdpa"):
+            raise ValueError("attention_backend must be naive or sdpa")
 
     @property
     def head_dim(self) -> int:
@@ -91,6 +95,12 @@ class BenchmarkConfig:
     dtype: str
 
     def __post_init__(self) -> None:
+        if self.dtype != "float32":
+            raise ValueError("Benchmarks currently support only float32")
+
+        if self.model.dropout != 0:
+            raise ValueError("Benchmarks require dropout=0; dropout is not implemented")
+
         if self.batch_size <= 0:
             raise ValueError("batch_size must be positive")
 
