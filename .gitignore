@@ -28,8 +28,6 @@ data/processed/
 
 # Experiment artifacts
 artifacts/
-!artifacts/**/*.png
-
 
 # Checkpoints and profiler outputs
 checkpoints/
@@ -42,3 +40,6 @@ traces/
 *.trace
 *.nsys-rep
 *.nsys-rep.sqlite
+
+# Notebooks
+notebooks/
