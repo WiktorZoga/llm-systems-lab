@@ -1,0 +1,67 @@
+{
+  "forward_no_grad": true,
+  "config": {
+    "model": {
+      "vocab_size": 50257,
+      "context_length": 256,
+      "d_model": 128,
+      "num_layers": 2,
+      "num_heads": 4,
+      "dropout": 0.0,
+      "attention_backend": "naive"
+    },
+    "batch_size": 2,
+    "sequence_length": 128,
+    "warmup_iterations": 5,
+    "iterations": 1000,
+    "learning_rate": 0.0003,
+    "seed": 2137,
+    "device": "mps",
+    "dtype": "float32"
+  },
+  "environment": {
+    "device": "mps",
+    "pytorch": "2.14.0"
+  },
+  "parameter_count": 6862464,
+  "retained_logits_shape": [
+    2,
+    128,
+    50257
+  ],
+  "optimizer": {
+    "name": "AdamW",
+    "lr": 0.0003,
+    "foreach": false,
+    "fused": false
+  },
+  "notes": "Bytes, synchronized snapshots, no warmup. With forward_no_grad, stop after forward (no backward or optimizer step). Batch allocated after optimizer creation; logits/loss remain alive. Gradients remain after step. AdamW state is allocated lazily on step. MPS driver bytes include caches/framework allocations, not just tensors. CUDA peak is cumulative since reset before model creation. CPU values are unavailable (null). Device counters exclude CPU copies.",
+  "snapshots": [
+    {
+      "stage": "before_model",
+      "tensor_bytes": 0,
+      "driver_bytes": 475136,
+      "peak_tensor_bytes": null
+    },
+    {
+      "stage": "after_model",
+      "tensor_bytes": 28456960,
+      "driver_bytes": 1082621952,
+      "peak_tensor_bytes": null
+    },
+    {
+      "stage": "after_optimizer_creation",
+      "tensor_bytes": 28456960,
+      "driver_bytes": 1082621952,
+      "peak_tensor_bytes": null
+    },
+    {
+      "stage": "after_forward",
+      "tensor_bytes": 80890112,
+      "driver_bytes": 1084964864,
+      "peak_tensor_bytes": null
+    }
+  ],
+  "created_at": "2026-09-07T20:05:00.396027+00:00",
+  "config_path": "/Users/zoga/Dev/Playground/llm-systems-lab/configs/benchmarks/scaling/l2.toml"
+}
