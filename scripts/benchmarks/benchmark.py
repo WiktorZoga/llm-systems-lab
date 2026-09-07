@@ -22,7 +22,7 @@ WORKLOADS = {
 }
 
 
-def run_benchmark(config):
+def run_benchmark(config, forward_no_grad=False, only_workload=None):
 
     device = select_device(config.device)
 
@@ -45,6 +45,8 @@ def run_benchmark(config):
     iterations = config.iterations
 
     for workload in WORKLOADS:
+        if only_workload is not None and workload != only_workload:
+            continue
         # Each workload starts from the same weights and synthetic batch.
         torch.manual_seed(config.seed)
         model = GPT(config.model).to(device=device, dtype=torch.float32)
@@ -59,38 +61,43 @@ def run_benchmark(config):
         parameter_count = sum(p.numel() for p in model.parameters())
         samples = []
 
-        for index in range(warmup + iterations):
-            if workload != "optimizer_step":
-                model.zero_grad(set_to_none=True)
+        # Only the forward-only workload can disable autograd.
+        grad_enabled = not (forward_no_grad and workload == "forward")
+        with torch.set_grad_enabled(grad_enabled):
+            for index in range(warmup + iterations):
+                if workload != "optimizer_step":
+                    model.zero_grad(set_to_none=True)
 
-            synchronize(device)
-            start = time.perf_counter()
+                synchronize(device)
+                start = time.perf_counter()
 
-            if optimizer is not None:
-                optimizer.zero_grad(set_to_none=True)
+                if optimizer is not None:
+                    optimizer.zero_grad(set_to_none=True)
 
-            logits, loss = model(input_ids, targets)
-            if workload != "forward":
-                loss.backward()
-            if optimizer is not None:
-                optimizer.step()
+                logits, loss = model(input_ids, targets)
+                if workload != "forward":
+                    loss.backward()
+                if optimizer is not None:
+                    optimizer.step()
 
-            synchronize(device)
-            elapsed = time.perf_counter() - start
+                synchronize(device)
+                elapsed = time.perf_counter() - start
 
-            # Python evaluates the next model(...) before replacing logits/loss.
-            # Remove these references now so the old outputs (and saved tensors
-            # for forward-only) do not stay alive during the next forward.
-            # This happens after timing; PyTorch may keep freed memory in its cache.
-            del logits, loss
+                # Release the previous outputs/graph before the next forward.
+                # Outside timing; the allocator may keep the memory cached.
+                del logits, loss
 
-            if index >= warmup:
-                samples.append(elapsed)
+                if index >= warmup:
+                    samples.append(elapsed)
 
         mean_seconds = statistics.mean(samples)
         median_seconds = statistics.median(samples)
         measurements[workload] = {
-            "description": WORKLOADS[workload],
+            "description": (
+                WORKLOADS[workload] if grad_enabled else
+                "Full logits + cross_entropy, autograd disabled; no backward."
+            ),
+            "grad_enabled": grad_enabled,
             "samples_seconds": samples,
             "mean_seconds": mean_seconds,
             "median_seconds": median_seconds,
@@ -101,6 +108,7 @@ def run_benchmark(config):
         del optimizer, model
 
     return {
+        "forward_no_grad": forward_no_grad,
         "config": {
             "model": asdict(config.model),
             "benchmark": {
@@ -152,7 +160,9 @@ def main(args):
     if output_path.exists():
         raise FileExistsError(f"Result already exists: {output_path}; use a new output directory")
 
-    result = run_benchmark(config)
+    result = run_benchmark(
+        config, forward_no_grad=args.forward_no_grad, only_workload=args.workload,
+    )
     result["config_path"] = str(config_path.resolve())
 
     timestamp = datetime.now(timezone.utc)
@@ -186,5 +196,9 @@ if __name__ == "__main__":
     parser.add_argument("--device", help="Override config device: cpu, mps, cuda or cuda:N.")
     parser.add_argument("--attention-backend", choices=["naive", "sdpa"],
                         help="Override only the attention implementation for an A/B run.")
+    parser.add_argument("--forward-no-grad", action="store_true",
+                        help="Disable autograd only for forward; backward/step stay unchanged.")
+    parser.add_argument("--workload", choices=list(WORKLOADS),
+                        help="Measure just one workload; by default measure all three.")
 
     main(parser.parse_args())
