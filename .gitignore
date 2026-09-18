@@ -41,5 +41,5 @@ traces/
 *.nsys-rep
 *.nsys-rep.sqlite
 
-# Notebooks
-notebooks/
+# Personal
+ROADMAP.md

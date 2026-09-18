@@ -1,24 +1,14 @@
 # LLM Systems Lab
 
-A personal, from-scratch learning project about how transformer models execute,
-scale, and interact with real hardware.
-
-The goal is to understand LLMs both as neural networks and as computational
-workloads: from model math and PyTorch execution to profiling, optimization,
-distributed training, and eventually lower-level C++/GPU programming.
+My learning project: building a GPT in PyTorch and checking how its size,
+attention implementation and batch shape affect time and memory.
 
 ## What is implemented
 
-- GPT-style Transformer implemented in PyTorch
-- training and overfitting scripts
-- text generation
-- GPT-2 weight import
-- synthetic benchmarks for scaling experiments
-- benchmark summaries and plots
-- synchronized memory snapshots across one training step (MPS / CUDA counters)
-- optional PyTorch SDPA alongside naive attention
-- scaling experiments over batch size, sequence length, model width, depth,
-  attention heads, and vocabulary size
+- GPT from scratch, with naive attention and optional SDPA
+- Training, single-batch overfitting and text generation
+- Hugging Face GPT-2 weight import
+- Synthetic time and memory benchmarks, with plots in notebooks
 
 ## Model anatomy
 
@@ -27,58 +17,25 @@ self-attention, MLP blocks, residual connections, and LayerNorm.
 
 ## Parameter count
 
-For the current GPT-style architecture:
-
 $$
 N = VD + CD + L(12D^2 + 13D) + 2D
 $$
 
-where:
-
-- $V$ - vocabulary size
-- $D$ - model width
-- $C$ - maximum context length
-- $L$ - number of Transformer blocks
-
-The $12D^2$ term contains the attention and MLP weight matrices.
-The $13D$ term contains their biases and the two LayerNorms in each block.
-
-The token embedding and language-model head use tied weights, so the
-$V \times D$ weight matrix is counted only once.
-
-For example, the tiny baseline contains 6,862,464 parameters, while the
-GPT-2 124M reference configuration contains 124,439,808 parameters.
+$V$: vocabulary, $D$: width, $C$: context limit, $L$: layers.
+Embedding and LM head share weights, so $VD$ is counted once.
+Tiny baseline: 6,862,464 parameters. GPT-2 reference: 124,439,808.
 
 ## Compute model
 
-Using the convention that one multiply and one add count as two FLOPs, the
-dominant matmul compute for one Transformer block is approximately:
+Counting a multiply-add as two FLOPs:
 
 $$
 F_{\text{block}} \approx 24BTD^2 + 4BT^2D
 $$
 
-The two terms have different origins:
-
-$$
-24BTD^2
-$$
-
-comes from the QKV projection, attention output projection, and MLP, while
-
-$$
-4BT^2D
-$$
-
-comes from the two attention matrix multiplications.
-
-The language-model head costs approximately:
-
 $$
 F_{\text{lm-head}} \approx 2BTDV
 $$
-
-Therefore, the dominant matmul FLOPs for a full forward pass are approximately:
 
 $$
 F_{\text{forward}}
@@ -86,51 +43,23 @@ F_{\text{forward}}
 L(24BTD^2 + 4BT^2D) + 2BTDV
 $$
 
-where:
-
-- $B$ - batch size
-- $T$ - input sequence length
-- $D$ - model width
-- $L$ - number of Transformer blocks
-- $V$ - vocabulary size
-
-These estimates count the dominant matrix multiplications only. They exclude
-operations such as LayerNorm, softmax, GELU, residual additions, bias additions,
-embedding addition, and cross-entropy.
-
-Some useful expectations:
-
-- projection and MLP compute scale approximately as $D^2$;
-- the two main attention matrix multiplications scale as $T^2D$;
-- increasing $T$ therefore affects both linear-in-$T$ and quadratic-in-$T$
-  parts of the model;
-- increasing $V$ increases embedding parameters and language-model-head
-  compute linearly;
-- in a tiny model with a full GPT-2 vocabulary, the language-model head can
-  represent a surprisingly large fraction of total compute;
-- theoretical FLOPs do not necessarily translate directly into execution time:
-  utilization, memory traffic, tensor shapes, kernel implementations, and
-  dispatch overhead also matter.
+$B$: batch size, $T$: sequence length. This counts the main matmuls, not
+softmax, normalization or loss. More FLOPs do not always mean more runtime.
+With our tiny model and large vocabulary, the LM head dominates this estimate.
 
 ## Experiments
 
-Scaling experiments vary batch size, sequence length, width, depth, heads or
-vocabulary size, one at a time. We measure parameter count, forward,
-forward + backward and optimizer-step time, plus tokens/s.
+- [Depth scaling](experiments/01_depth_scaling/analysis.ipynb): L=1–16, predicted FLOPs vs measured time.
+- [Memory](experiments/02_memory_scaling/analysis.ipynb): doubling batch size or sequence length.
+- [Naive vs SDPA](experiments/03_attention/analysis.ipynb): time and memory, including longer sequences and forward with/without autograd.
 
-Results are saved as JSON, with CSV summaries and plots.
-See [configs and commands](configs/benchmarks/scaling/README.md).
-Memory measurements and naive vs SDPA comparisons are the next experiments.
+Times measured on MPS in FP32, three repeats each. SDPA uses the math backend
+with autograd in our setup. JSONs are in `experiments/`; checkpoints and scratch
+runs stay in ignored `artifacts/`. CUDA has not been measured yet.
 
-Experiment artifacts are currently kept locally and are not included in the repository.
+## Next
 
-## Roadmap
-
-- Repeat controlled scaling runs and compare them with manual FLOP predictions.
-- Measure model, activation, gradient and optimizer-state memory.
-- Run naive vs SDPA A/B on MPS, then repeat selected workloads on CUDA.
-- Later: profiling, precision and compilation experiments.
-- Longer term: inference, multi-GPU scaling and lower-level GPU programming.
+Understand the results, then try selected workloads on CUDA and explore lower-level GPU code.
 
 ## Learning resources
 

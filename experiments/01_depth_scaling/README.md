@@ -1,31 +1,9 @@
 # Depth scaling
 
-How increasing number of layers impacts the model?
+How does increasing the number of layers affect compute and runtime?
 
-## Fixed parameters
-
-- B = 2 — batch size
-- T = 128 — sequence length used in the benchmark
-- T_max = 256 — maximum context length supported by the model
-- D = 128 — embedding dimension / model width
-- H = 4 — number of attention heads
-- V = 50257 — vocabulary size
-- Precision: FP32
-- Attention: naive
-
-## Changing parameter:
-
-- L = 1, 2, 4, 8, 12, 16 (number of layers, blocks)
-
-## Questions:
-
-- [] How does increasing Transformer depth affect predicted FLOPs and measured runtime?
-
-- [] What fraction of the predicted forward FLOPs comes from the Transformer blocks?
-
-- [] How does increasing Transformer depth affect memory consumption?
-
-- [] When the Transformer blocks start to dominate in FLOPs?
+B=2, T=128, D=128, H=4, V=50257, context=256. FP32, naive attention.
+Only L changes: 1, 2, 4, 8, 12, 16.
 
 ## Predictions
 
@@ -85,7 +63,7 @@ Y=XW,\qquad
 \nabla_W=X^\top\nabla_Y
 $$
 
-Each gradient multiplication has the same FLOP count as the forward multiplication. Using this approximation throughout the dominant matmuls:
+Each gradient matmul has the same FLOP count as the forward matmul:
 
 $$
 F_{\text{backward}} \approx 2F_{\text{forward}}
@@ -128,3 +106,37 @@ $$
 AdamW uses the gradients to update the weights. It also maintains
 two moving averages for each parameter: the gradient and its square.
 
+## Measurement
+
+MPS, PyTorch 2.14.0. Three repeats, 5 warmups and 1000 samples per workload.
+Synthetic tokens, dropout=0, seed=2137.
+
+| Workload | Timed work |
+|---|---|
+| forward | Full logits + cross-entropy, with autograd enabled; no backward |
+| forward_backward | Same forward + backward; gradient reset outside timing |
+| optimizer_step | Gradient reset + forward + backward + AdamW update |
+
+Timing includes device synchronization. Tokens/s = B*T / mean time.
+
+## Results
+
+For L=16 relative to L=2, the matmul model predicts **1.466x** compute.
+Ranges below cover the three repeats, each normalized to its own L=2:
+
+| Workload | Mean time ratio | Median time ratio |
+|---|---:|---:|
+| forward | 0.908–0.993 | 0.905–0.987 |
+| forward_backward | 1.474–1.497 | 1.497–1.501 |
+| optimizer_step | 1.867–1.946 | 1.860–1.889 |
+
+Forward+backward follows the FLOPs estimate most closely; the full step grows
+faster. Forward is irregular — we have not explained why.
+
+![Mean times across three repeats](figures/depth_mean.png)
+
+[Median plot](figures/depth_median.png) · [Full analysis](analysis.ipynb)
+
+Runs always went from L=1 to L=16, so run order may affect the comparison.
+The notebook also includes separate L=2 autograd and memory checks.
+It reads saved JSONs; no GPU is needed to view the plots.
