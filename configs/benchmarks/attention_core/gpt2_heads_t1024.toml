@@ -1,0 +1,13 @@
+# Attention core only, not a full GPT. Override --device cpu/mps for local smoke checks.
+[attention]
+batch_size = 2
+num_heads = 12
+head_dim = 64
+sequence_length = 1024
+
+[benchmark]
+device = "cuda"
+dtype = "bfloat16"
+seed = 2137
+warmup = 20
+iterations = 1000
