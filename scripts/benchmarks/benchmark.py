@@ -61,6 +61,12 @@ def run_benchmark(config, forward_no_grad=False, only_workload=None):
         parameter_count = sum(p.numel() for p in model.parameters())
         samples = []
 
+        cuda_peak = None
+        if device.type == "cuda":
+            synchronize(device)
+            torch.cuda.reset_peak_memory_stats(device)
+            memory_before = torch.cuda.memory_allocated(device)
+
         # Only the forward-only workload can disable autograd.
         grad_enabled = not (forward_no_grad and workload == "forward")
         with torch.set_grad_enabled(grad_enabled):
@@ -90,6 +96,15 @@ def run_benchmark(config, forward_no_grad=False, only_workload=None):
                 if index >= warmup:
                     samples.append(elapsed)
 
+        if device.type == "cuda":
+            synchronize(device)
+            cuda_peak = {
+                "before_bytes": memory_before,
+                "peak_bytes": torch.cuda.max_memory_allocated(device),
+                "after_bytes": torch.cuda.memory_allocated(device),
+            }
+            cuda_peak["extra_bytes"] = cuda_peak["peak_bytes"] - cuda_peak["before_bytes"]
+
         mean_seconds = statistics.mean(samples)
         median_seconds = statistics.median(samples)
         measurements[workload] = {
@@ -102,6 +117,7 @@ def run_benchmark(config, forward_no_grad=False, only_workload=None):
             "mean_seconds": mean_seconds,
             "median_seconds": median_seconds,
             "tokens_per_second": batch_size * sequence_length / mean_seconds,
+            "cuda_peak": cuda_peak,
         }
         # This workload is finished. Release its model and optimizer state
         # before constructing a fresh model for the next workload.
@@ -122,10 +138,17 @@ def run_benchmark(config, forward_no_grad=False, only_workload=None):
                 "dtype": config.dtype,
             },
         },
-        "environment": {"device": str(device), "pytorch": torch.__version__},
+        "environment": {
+            "device": str(device),
+            "pytorch": torch.__version__,
+            "cuda_version": torch.version.cuda,
+            "gpu_name": torch.cuda.get_device_name(device) if device.type == "cuda" else None,
+        },
         "measurement_notes": (
             "Outputs released after each timing; AdamW foreach=False, fused=False. "
-            "Allocator caches stay warm. Compare within this measurement procedure."
+            "Allocator caches stay warm. CUDA peak is allocator allocated memory during "
+            "one workload after model setup; it is not total GPU memory."
+            " Compare within this measurement procedure."
         ),
         "warmup_iterations": warmup,
         "measured_iterations": iterations,
@@ -146,8 +169,16 @@ def main(args):
         config_path = ROOT / config_path
 
     config = load_benchmark_config(config_path)
-    if args.device is not None:
-        config = replace(config, device=args.device)
+    overrides = {
+        "batch_size": args.batch_size,
+        "sequence_length": args.sequence_length,
+        "warmup_iterations": args.warmup,
+        "iterations": args.iterations,
+        "device": args.device,
+    }
+    overrides = {name: value for name, value in overrides.items() if value is not None}
+    if overrides:
+        config = replace(config, **overrides)
     if args.attention_backend is not None:
         config = replace(
             config, model=replace(config.model, attention_backend=args.attention_backend),
@@ -194,11 +225,14 @@ if __name__ == "__main__":
     parser.add_argument("--output-dir", default="artifacts/benchmarks/manual",
                         help="Directory for the JSON result.")
     parser.add_argument("--device", help="Override config device: cpu, mps, cuda or cuda:N.")
+    parser.add_argument("--batch-size", type=int, help="Override batch size from the config.")
+    parser.add_argument("--sequence-length", type=int, help="Override sequence length from the config.")
+    parser.add_argument("--warmup", type=int, help="Override the number of warmup iterations.")
+    parser.add_argument("--iterations", type=int, help="Override the number of measured iterations.")
     parser.add_argument("--attention-backend", choices=["naive", "sdpa"],
                         help="Override only the attention implementation for an A/B run.")
     parser.add_argument("--forward-no-grad", action="store_true",
                         help="Disable autograd only for forward; backward/step stay unchanged.")
     parser.add_argument("--workload", choices=list(WORKLOADS),
                         help="Measure just one workload; by default measure all three.")
-
     main(parser.parse_args())

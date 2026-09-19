@@ -52,10 +52,12 @@ With our tiny model and large vocabulary, the LM head dominates this estimate.
 - [Depth scaling](experiments/01_depth_scaling/analysis.ipynb): L=1–16, predicted FLOPs vs measured time.
 - [Memory](experiments/02_memory_scaling/analysis.ipynb): doubling batch size or sequence length.
 - [Naive vs SDPA](experiments/03_attention/analysis.ipynb): time and memory, including longer sequences and forward with/without autograd.
+- `scripts/benchmarks/roofline.py`: small GEMM and copy measurements for a hardware reference.
 
 Times measured on MPS in FP32, three repeats each. SDPA uses the math backend
 with autograd in our setup. JSONs are in `experiments/`; checkpoints and scratch
-runs stay in ignored `artifacts/`. CUDA has not been measured yet.
+runs stay in ignored `artifacts/`. CUDA preparation is present, but CUDA results
+have not been measured yet.
 
 ## Next
 
