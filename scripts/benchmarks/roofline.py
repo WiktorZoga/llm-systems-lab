@@ -33,40 +33,45 @@ def summarize(samples, flops=0, bytes_moved=0):
         "samples_seconds": samples,
         "mean_ms": mean_seconds * 1000,
         "median_ms": statistics.median(samples) * 1000,
+        "flops": flops,
+        "bytes_moved": bytes_moved,
         "gflops": flops / mean_seconds / 1e9 if flops else None,
         "gb_per_second": bytes_moved / mean_seconds / 1e9 if bytes_moved else None,
     }
 
 
-def run_gemm(size, device, warmup, iterations):
-    a = torch.randn(size, size, device=device)
-    b = torch.randn(size, size, device=device)
-    output = torch.empty(size, size, device=device)
+def run_gemm(size, device, dtype, warmup, iterations):
+    a = torch.randn(size, size, device=device, dtype=dtype)
+    b = torch.randn(size, size, device=device, dtype=dtype)
+    output = torch.empty(size, size, device=device, dtype=dtype)
     samples = measure(lambda: torch.mm(a, b, out=output), device, warmup, iterations)
     return {
         "operation": "gemm",
         "size": size,
-        "dtype": "float32",
+        "dtype": str(dtype).removeprefix("torch."),
         **summarize(samples, flops=2 * size**3, bytes_moved=3 * a.numel() * a.element_size()),
     }
 
 
-def run_copy(size_mib, device, warmup, iterations):
+def run_copy(size_mib, device, dtype, warmup, iterations):
     num_bytes = size_mib * 2**20
-    source = torch.randn(num_bytes // 4, device=device)
+    element_size = torch.empty((), dtype=dtype).element_size()
+    source = torch.randn(num_bytes // element_size, device=device, dtype=dtype)
     destination = torch.empty_like(source)
     samples = measure(lambda: destination.copy_(source), device, warmup, iterations)
     return {
         "operation": "copy",
         "size_mib": size_mib,
-        "dtype": "float32",
-        **summarize(samples, bytes_moved=num_bytes),
+        "dtype": str(dtype).removeprefix("torch."),
+        # A copy reads the source and writes the destination.
+        **summarize(samples, bytes_moved=2 * num_bytes),
     }
 
 
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--device", default="cuda", help="cpu, mps, cuda or cuda:N")
+    parser.add_argument("--dtype", default="float32", choices=["float32", "bfloat16"])
     parser.add_argument("--gemm-sizes", nargs="+", type=int, default=[1024, 2048, 4096])
     parser.add_argument("--copy-mib", nargs="+", type=int, default=[64, 128, 256])
     parser.add_argument("--warmup", type=int, default=10)
@@ -82,23 +87,28 @@ def main(args):
         raise ValueError("sizes must be positive")
 
     device = select_device(args.device)
+    if device.type == "cuda" and args.dtype == "bfloat16" and not torch.cuda.is_bf16_supported():
+        raise RuntimeError("This CUDA device does not support BF16")
+    dtype = getattr(torch, args.dtype)
     measurements = []
     for size in args.gemm_sizes:
-        measurements.append(run_gemm(size, device, args.warmup, args.iterations))
+        measurements.append(run_gemm(size, device, dtype, args.warmup, args.iterations))
     for size_mib in args.copy_mib:
-        measurements.append(run_copy(size_mib, device, args.warmup, args.iterations))
+        measurements.append(run_copy(size_mib, device, dtype, args.warmup, args.iterations))
 
     result = {
         "created_at": datetime.now(timezone.utc).isoformat(),
         "device": str(device),
+        "dtype": args.dtype,
         "pytorch": torch.__version__,
         "cuda_version": torch.version.cuda,
         "gpu_name": torch.cuda.get_device_name(device) if device.type == "cuda" else None,
         "warmup": args.warmup,
         "iterations": args.iterations,
         "notes": (
-            "GEMM uses preallocated float32 inputs and output. Copy moves one preallocated "
-            "float32 tensor to another. Synchronization is outside each timed operation."
+            f"GEMM uses preallocated {args.dtype} inputs and output. Copy reads one "
+            f"preallocated {args.dtype} tensor and writes another. Synchronization is "
+            "outside each timed operation."
         ),
         "measurements": measurements,
     }
