@@ -202,3 +202,16 @@ class GPT(nn.Module):
             loss = None
 
         return logits, loss
+
+    def forward_cached(self, input_ids, past_key_values=None):
+        """Learning task: implement inference without recomputing the prefix.
+
+        First call: input_ids contains the prompt; past_key_values is None.
+        Later calls: input_ids contains one new token per batch item.
+        Return logits [B, 1, vocab_size] and a list of (K, V) pairs, one
+        per layer. Each K/V has shape [B, num_heads, cached_length, head_dim].
+        Keep forward() and the existing checkpoint parameter names working.
+        """
+        raise NotImplementedError(
+            "Implement GPT.forward_cached first; use --mode no_cache for the baseline."
+        )

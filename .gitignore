@@ -22,8 +22,7 @@ venv/
 data/raw/
 data/processed/
 
-# Test and lint caches
-.pytest_cache/
+# Lint cache
 .ruff_cache/
 
 # Experiment artifacts

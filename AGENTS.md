@@ -33,14 +33,14 @@ The goal is to understand ML systems and build an honest portfolio, not a produc
 - Start with `git status` and the relevant files. Preserve uncommitted work. Do not assume another app/CLI conversation's history is available.
 - `src/llm_systems_lab/`: model, data, config and device code.
 - `scripts/`: training, inference, data preparation, benchmarks and tools.
-- `configs/`: TOML settings. `experiments/`: notebooks and results. `tests/`: pytest tests.
+- `configs/`: TOML settings. `experiments/`: notebooks, results and figures.
 - Read the relevant script's `--help` before proposing commands. Do not add dependencies unless needed for the requested task.
 
 ```bash
 uv sync --locked
-uv run pytest
 uv run ruff check .
 ```
 
-After code changes, run relevant checks and report what actually ran. For docs-only changes, check the text and paths; no need to launch GPU jobs.
+Check code changes with short CPU runs and Ruff. Do not add a test suite unless asked.
+For docs-only changes, check the text and paths.
 Do not commit, amend, push, publish or delete experiment results unless explicitly asked. End with a short summary and one useful next step, not another big plan.

@@ -20,11 +20,6 @@ uv run --locked python -c \
     'import torch; print("PyTorch:", torch.__version__); print("CUDA:", torch.version.cuda); print("GPU:", torch.cuda.get_device_name())' \
     > "$OUTPUT_DIR/environment.txt"
 
-uv run --locked pytest \
-    tests/test_attention_benchmark.py \
-    tests/test_block_profiler.py \
-    tests/test_roofline.py
-
 for dtype in float32 bfloat16; do
     for repeat in 01 02 03; do
         uv run --locked python scripts/benchmarks/roofline.py \

@@ -10,6 +10,19 @@ attention implementation and batch shape affect time and memory.
 - Hugging Face GPT-2 weight import
 - Synthetic time and memory benchmarks, with plots in notebooks
 
+## Where things are
+
+```text
+src/llm_systems_lab/   model, data and config code
+scripts/training/     train, overfit and plot training metrics
+scripts/inference/    generate text
+scripts/benchmarks/   measure time/memory and draw plots
+configs/              settings for training and benchmarks
+experiments/          saved results, notebooks and figures
+```
+
+Setup: `uv sync --locked`. For notebooks, use the repo's `.venv/bin/python`.
+
 ## Model anatomy
 
 The model consists of token embeddings, positional embeddings, causal
@@ -59,9 +72,25 @@ with autograd in our setup. JSONs are in `experiments/`; checkpoints and scratch
 runs stay in ignored `artifacts/`. CUDA preparation is present, but CUDA results
 have not been measured yet.
 
+![Depth scaling: time and relative cost across three runs](experiments/01_depth_scaling/figures/depth_mean.png)
+
+The depth notebook saves mean and median plots in its `figures/` folder.
+The [inference plotting script](scripts/benchmarks/plot_inference.py) will do the same
+for the next experiment, alongside a small CSV table.
+
 ## Next
 
-Understand the results, then try selected workloads on CUDA and explore lower-level GPU code.
+1. [KV cache](experiments/04_kv_cache/README.md): implement cached forward in GPT,
+   then compare prefill/decode time and cache size as the context grows.
+   The no-cache benchmark is ready; cached forward is still to do.
+2. Compare a cache that grows with `torch.cat` against a preallocated buffer:
+   how much time do allocations and copies add?
+3. Try a small LLaMA-like model: RoPE, RMSNorm and SwiGLU, then GQA to explore
+   fewer K/V heads and a smaller cache. This is a future implementation.
+
+For training, the next useful comparison is different microbatches at the same
+effective batch size, followed by activation checkpointing.
+CUDA profiling tools are ready for a later GPU session.
 
 ## Learning resources
 
