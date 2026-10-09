@@ -129,28 +129,6 @@ class RunConfig:
     name: str
     output_dir: str
 
-def load_config(config_type: str, path: str | Path):
-    path = Path(path)
-
-    if not path.is_file():
-        raise FileNotFoundError(f"Config file not found: {path}")
-
-    with open(path, "rb") as f:
-        raw_config = tomllib.load(f)
-
-    config = raw_config[config_type]
-
-    config_types = {
-        "model": ModelConfig,
-        "data": DataConfig,
-        "train": TrainConfig,
-        "eval": EvalConfig,
-        "checkpoint": CheckpointConfig,
-        "run": RunConfig
-    }
-
-    return config_types[config_type](**config)
-
 @dataclass(frozen=True)
 class ExperimentConfig:
     model: ModelConfig
@@ -165,6 +143,15 @@ class ExperimentConfig:
             raise ValueError(
                 "sequence_length cannot exceed context_length"
             )
+
+
+@dataclass(frozen=True)
+class InferenceConfig:
+    """Settings used by text generation and weight import."""
+
+    model: ModelConfig
+    tokenizer: str
+    run: RunConfig | None = None
 
 
 def _load_raw_config(path: str | Path) -> dict[str, Any]:
@@ -196,4 +183,13 @@ def load_benchmark_config(path: str | Path) -> BenchmarkConfig:
     return BenchmarkConfig(
         model=ModelConfig(**raw_config["model"]),
         **raw_config["benchmark"],
+    )
+
+
+def load_inference_config(path: str | Path) -> InferenceConfig:
+    raw_config = _load_raw_config(path)
+    return InferenceConfig(
+        model=ModelConfig(**raw_config["model"]),
+        tokenizer=raw_config["data"]["tokenizer"],
+        run=RunConfig(**raw_config["run"]) if "run" in raw_config else None,
     )

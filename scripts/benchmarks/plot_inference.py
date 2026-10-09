@@ -1,42 +1,24 @@
 """Draw prefill/decode results and save PNGs plus a CSV table."""
 
 import argparse
-import json
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import pandas as pd
 
+from llm_systems_lab.inference_results import load_inference_results
+
 ROOT = Path(__file__).resolve().parents[2]
 
 
 def main(args):
-    runs, rows = {}, []
-    for path in args.files:
-        path = ROOT / path
-        result = json.loads(path.read_text())
-        name = f"{path.parent.name}/{path.stem}"
-        runs[name] = result
-        settings = result["config"]["benchmark"]
-        rows.append({
-            "run": name, "mode": result["mode"],
-            "device": result["environment"]["device"],
-            "batch_size": settings["batch_size"],
-            "prompt_length": settings["prompt_length"],
-            "decode_steps": settings["decode_steps"],
-            "prefill_mean_ms": result["prefill"]["mean_ms"],
-            "prefill_median_ms": result["prefill"]["median_ms"],
-            "decode_mean_ms": result["decode"]["mean_ms"],
-            "decode_median_ms": result["decode"]["median_ms"],
-            "tokens_per_second": result["decode"]["tokens_per_second"],
-            "cache_MiB": result["kv_cache_bytes"] / 2**20,
-        })
-
-    table = pd.DataFrame(rows).set_index("run")
+    runs, table = load_inference_results([ROOT / path for path in args.files])
     output = ROOT / args.output_dir
     output.mkdir(parents=True, exist_ok=True)
     table.to_csv(output / "summary.csv")
-    print(table.round(3).to_string())
+    columns = ["prefill_mean_ms", "prefill_median_ms", "decode_mean_ms",
+               "decode_median_ms", "tokens_per_second", "cache_MiB"]
+    print(table[columns].round(3).to_string())
 
     fig, axes = plt.subplots(1, 2, figsize=(14, 5))
     table[["prefill_mean_ms", "prefill_median_ms"]].plot.bar(

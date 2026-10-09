@@ -1,6 +1,5 @@
 import argparse
 import json
-import os
 import time
 from pathlib import Path
 
@@ -12,19 +11,17 @@ from llm_systems_lab.config import load_experiment_config
 from llm_systems_lab.data.dataloader import InfiniteDataLoader
 from llm_systems_lab.data.dataset import TextDataset
 from llm_systems_lab.models.gpt import GPT
+from llm_systems_lab.run_output import create_run_directory, save_checkpoint
 
 ROOT = Path(__file__).resolve().parents[2]
 
 def main(args):
     config = load_experiment_config(ROOT / "configs" / args.config)
 
-    OUTPUT_DIR = ROOT / config.run.output_dir / config.run.name
-
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
-    os.makedirs(OUTPUT_DIR / "checkpoints", exist_ok=True)
+    OUTPUT_DIR = create_run_directory(ROOT / config.run.output_dir / config.run.name)
 
     metrics_path = OUTPUT_DIR / "metrics.jsonl"
-    metrics_file = metrics_path.open("w", encoding="utf-8")
+    metrics_file = metrics_path.open("x", encoding="utf-8")
 
     torch.manual_seed(config.train.seed)
     device = config.train.device
@@ -134,7 +131,7 @@ def main(args):
                 "optimizer_state_dict": optimizer.state_dict(),
             }
             checkpoint_path = OUTPUT_DIR / "checkpoints" / f"step_{step + 1:06d}.pt"
-            torch.save(checkpoint, checkpoint_path)
+            save_checkpoint(checkpoint, checkpoint_path)
 
         metric = {
             "step": step + 1,
@@ -150,6 +147,8 @@ def main(args):
 
         metrics_file.write(json.dumps(metric) + "\n")
         metrics_file.flush()
+
+    metrics_file.close()
 
 if __name__ == "__main__":
 

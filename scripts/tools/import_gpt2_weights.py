@@ -5,8 +5,9 @@ import tiktoken
 import torch
 from transformers import GPT2LMHeadModel
 
-from llm_systems_lab.config import load_experiment_config
+from llm_systems_lab.config import load_inference_config
 from llm_systems_lab.models.gpt import GPT
+from llm_systems_lab.run_output import save_checkpoint
 
 ROOT = Path(__file__).resolve().parents[2]
 CONFIG_DIR = ROOT / "configs"
@@ -20,8 +21,17 @@ TRANSPOSED_WEIGHTS = (
 
 
 def main(args):
-    config = load_experiment_config(CONFIG_DIR / args.config)
+    config = load_inference_config(CONFIG_DIR / args.config)
     device = args.device
+
+    if args.output is not None:
+        output_path = ROOT / args.output
+    else:
+        if config.run is None:
+            raise ValueError("Provide --output or a [run] section in the config")
+        output_path = ROOT / config.run.output_dir / config.run.name / "checkpoints" / "step_000000.pt"
+    if output_path.exists():
+        raise FileExistsError(f"Checkpoint already exists: {output_path}")
 
     print(f"loading Hugging Face model: {args.model_name}")
     hf_model = GPT2LMHeadModel.from_pretrained(args.model_name).to(device)
@@ -76,7 +86,7 @@ def main(args):
     model.load_state_dict(state_dict, strict=True)
     model.eval()
 
-    encoding = tiktoken.get_encoding(config.data.tokenizer)
+    encoding = tiktoken.get_encoding(config.tokenizer)
     input_ids = torch.tensor(
         [encoding.encode(args.prompt)],
         dtype=torch.long,
@@ -93,19 +103,7 @@ def main(args):
     if not torch.allclose(hf_logits, logits, rtol=1e-4, atol=1e-5):
         raise RuntimeError("Our model and Hugging Face GPT-2 disagree.")
 
-    if args.output is None:
-        output_path = (
-            ROOT
-            / config.run.output_dir
-            / config.run.name
-            / "checkpoints"
-            / "step_000000.pt"
-        )
-    else:
-        output_path = ROOT / args.output
-
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    torch.save(
+    save_checkpoint(
         {
             "step": 0,
             "model_state_dict": model.state_dict(),

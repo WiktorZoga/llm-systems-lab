@@ -4,14 +4,14 @@ from pathlib import Path
 import tiktoken
 import torch
 
-from llm_systems_lab.config import load_experiment_config
+from llm_systems_lab.config import load_inference_config
 from llm_systems_lab.models.gpt import GPT
 
 ROOT = Path(__file__).resolve().parents[2]
 CONFIG_DIR = ROOT / "configs"
 
 def main(args):
-    config = load_experiment_config(CONFIG_DIR / args.config)
+    config = load_inference_config(CONFIG_DIR / args.config)
 
     device = args.device
 
@@ -48,7 +48,7 @@ def main(args):
     }
     model.load_state_dict(state_dict)
 
-    encoding = tiktoken.get_encoding(config.data.tokenizer)
+    encoding = tiktoken.get_encoding(config.tokenizer)
 
     prompt = args.prompt
 

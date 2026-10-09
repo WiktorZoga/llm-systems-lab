@@ -37,5 +37,7 @@ uv run python scripts/benchmarks/plot_inference.py \
 
 Compare the same model, prompt length, batch size and device.
 This saves `latency.png`, `throughput.png` and `summary.csv`.
+The notebook and exporter share `llm_systems_lab.inference_results`; the CSV keeps
+the source file, model dimensions and measurement settings alongside the timings.
 The notebook is there for exploring the individual measurements.
 After collecting results, show a figure here with `![Latency](figures/latency.png)`.

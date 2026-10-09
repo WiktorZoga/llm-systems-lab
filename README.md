@@ -22,6 +22,8 @@ experiments/          saved results, notebooks and figures
 ```
 
 Setup: `uv sync --locked`. For notebooks, use the repo's `.venv/bin/python`.
+For a new training run, change `[run].name`; existing run folders and checkpoints are protected.
+`gpt2_hf.toml` only contains the model, tokenizer and output settings needed for import/generation.
 
 ## Model anatomy
 
