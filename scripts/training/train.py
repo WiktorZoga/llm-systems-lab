@@ -78,7 +78,9 @@ def main(args):
             input_ids = input_ids.to(device)
             targets = targets.to(device)
 
-            _, loss = model(input_ids, targets)
+            _, loss = model(
+                input_ids, targets, checkpoint_blocks=config.train.activation_checkpointing,
+            )
 
             scaled_loss = loss / config.train.gradient_accumulation_steps
             scaled_loss.backward()

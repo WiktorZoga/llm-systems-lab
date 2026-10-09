@@ -1,5 +1,5 @@
+import argparse
 import json
-import os
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -9,15 +9,14 @@ from llm_systems_lab.config import load_experiment_config
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def main():
-    config = load_experiment_config(ROOT / "configs" / "gpt_tiny_smoke.toml")
+def main(args):
+    config = load_experiment_config(ROOT / "configs" / args.config)
 
-    OUTPUT_DIR = ROOT / config.run.output_dir / config.run.name
-    metrics_path = OUTPUT_DIR / "metrics.jsonl" 
+    run_dir = ROOT / config.run.output_dir / config.run.name
+    metrics_path = ROOT / args.metrics if args.metrics else run_dir / "metrics.jsonl"
 
-    CHARTS_DIR = OUTPUT_DIR / "charts"
-
-    os.makedirs(CHARTS_DIR, exist_ok=True)
+    charts_dir = ROOT / args.output_dir if args.output_dir else run_dir / "charts"
+    charts_dir.mkdir(parents=True, exist_ok=True)
 
     metrics = []
 
@@ -29,8 +28,6 @@ def main():
     steps = [metric["step"] for metric in metrics]
     train_losses = [metric["train_loss"] for metric in metrics]
     tokens_per_second = [metric["tokens/s"] for metric in metrics]
-    # step_times = [metric["step_time_sec"] for metric in metrics]
-    # lr = [metric["lr"] for metric in metrics]
 
     val_metrics = [
         metric for metric in metrics
@@ -39,7 +36,6 @@ def main():
 
     val_steps = [metric["step"] for metric in val_metrics]
     val_losses = [metric["val_loss"] for metric in val_metrics]
-
 
     fig, ax = plt.subplots()
     ax.plot(steps, train_losses, label="train loss")
@@ -52,7 +48,7 @@ def main():
     ax.grid(True)
 
     fig.savefig(
-        CHARTS_DIR / "loss.png",
+        charts_dir / "loss.png",
         dpi=150,
         bbox_inches="tight",
     )
@@ -69,7 +65,7 @@ def main():
     ax.grid(True)
 
     fig.savefig(
-        CHARTS_DIR / "throughput.png",
+        charts_dir / "throughput.png",
         dpi=150,
         bbox_inches="tight"
     )
@@ -78,4 +74,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config", default="gpt_tiny_smoke.toml")
+    parser.add_argument("--metrics", type=Path, help="Plot an already saved metrics.jsonl file.")
+    parser.add_argument("--output-dir", type=Path)
+    main(parser.parse_args())

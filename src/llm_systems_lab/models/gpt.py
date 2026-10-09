@@ -6,6 +6,7 @@ import math
 import torch
 import torch.nn.functional as F
 from torch import nn
+from torch.utils.checkpoint import checkpoint
 
 from llm_systems_lab.config import ModelConfig
 
@@ -160,7 +161,7 @@ class GPT(nn.Module):
         elif isinstance(module, nn.Embedding):
             torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
-    def forward(self, input_ids, targets=None):
+    def forward(self, input_ids, targets=None, *, checkpoint_blocks=False):
         """
             B, T - batch_size, sequence_length
 
@@ -188,7 +189,11 @@ class GPT(nn.Module):
         x = tok_emb + pos_emb
 
         for block in self.transformer["h"]:
-            x = block(x)
+            if checkpoint_blocks and self.training and torch.is_grad_enabled():
+                # Keep the block input; recompute its intermediates during backward.
+                x = checkpoint(block, x, use_reentrant=False)
+            else:
+                x = block(x)
 
         x = self.transformer["ln_f"](x)
 

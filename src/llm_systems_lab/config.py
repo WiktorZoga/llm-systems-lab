@@ -64,6 +64,7 @@ class TrainConfig:
     device: str
     dtype: str
     shuffle: bool
+    activation_checkpointing: bool = False
 
     def __post_init__(self):
         if self.batch_size <= 0:

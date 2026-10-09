@@ -1,0 +1,36 @@
+[model]
+vocab_size = 50257
+context_length = 128
+d_model = 128
+num_layers = 2
+num_heads = 4
+dropout = 0.0
+attention_backend = "naive"
+
+[data]
+train_path = "data/processed/shakespeare/train.pt"
+val_path = "data/processed/shakespeare/val.pt"
+tokenizer = "gpt2"
+
+[train]
+batch_size = 8
+micro_batch_size = 2
+sequence_length = 128
+learning_rate = 0.0003
+max_steps = 200
+seed = 2137
+device = "mps"
+dtype = "float32"
+shuffle = true
+activation_checkpointing = true
+
+[eval]
+interval = 50
+num_batches = 10
+
+[checkpoint]
+interval = 200
+
+[run]
+name = "gpt-tiny-checkpointing-smoke"
+output_dir = "artifacts/runs"

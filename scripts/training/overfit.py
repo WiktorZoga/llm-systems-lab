@@ -62,7 +62,10 @@ def main(args):
         optimizer.zero_grad(set_to_none=True)
 
         for _ in range(config.train.gradient_accumulation_steps):
-            _, loss = model(fixed_input_ids, fixed_targets)
+            _, loss = model(
+                fixed_input_ids, fixed_targets,
+                checkpoint_blocks=config.train.activation_checkpointing,
+            )
 
             scaled_loss = loss / config.train.gradient_accumulation_steps
             scaled_loss.backward()
