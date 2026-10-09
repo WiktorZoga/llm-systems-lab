@@ -1,0 +1,68 @@
+{
+  "model": {
+    "vocab_size": 4096,
+    "context_length": 128,
+    "d_model": 256,
+    "num_layers": 8,
+    "num_heads": 4,
+    "dropout": 0.0,
+    "attention_backend": "naive"
+  },
+  "train": {
+    "batch_size": 4,
+    "micro_batch_size": 1,
+    "sequence_length": 128,
+    "learning_rate": 0.0003,
+    "seed": 2137
+  },
+  "device": "cpu",
+  "pytorch": "2.14.0",
+  "dtype": "float64",
+  "optimizer": {
+    "name": "AdamW",
+    "lr": 0.0003,
+    "foreach": false,
+    "fused": false
+  },
+  "tolerances": {
+    "rtol": 1e-07,
+    "atol": 1e-09
+  },
+  "correctness": {
+    "checkpointing": {
+      "loss_abs_error": 0.0,
+      "parameters_checked": true,
+      "gradients_max_abs_error": 0.0,
+      "parameters_max_abs_error": 0.0
+    },
+    "accumulation": {
+      "loss_abs_error": 0.0,
+      "parameters_checked": true,
+      "gradients_max_abs_error": 4.163336342344337e-17,
+      "parameters_max_abs_error": 3.572316054079039e-14
+    },
+    "combined": {
+      "loss_abs_error": 0.0,
+      "parameters_checked": true,
+      "gradients_max_abs_error": 0.0,
+      "parameters_max_abs_error": 0.0
+    }
+  },
+  "cases": [
+    {
+      "name": "normal",
+      "loss": 8.36763205250782,
+      "saved_activation_bytes": 170140680,
+      "forward_block_calls": 8,
+      "backward_block_calls": 0
+    },
+    {
+      "name": "checkpointed",
+      "loss": 8.36763205250782,
+      "saved_activation_bytes": 27272200,
+      "forward_block_calls": 8,
+      "backward_block_calls": 8
+    }
+  ],
+  "notes": "Saved activation bytes count unique storages saved during one full-batch forward, excluding pre-existing parameters, buffers and input/target tensors. This is not peak memory. Block calls count entries, not FLOPs; non-reentrant recomputation may stop early. All cases use identical weights/tokens and equal-sized microbatches. Combined compares checkpointed microbatches against ordinary microbatches. FP32 accumulation update errors are reported, not asserted; the float64 CPU run checks them strictly. No latency is measured."
+}

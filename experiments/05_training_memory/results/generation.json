@@ -1,0 +1,9 @@
+{
+  "config": "configs/gpt_tiny_checkpointing.toml",
+  "checkpoint": "artifacts/runs/gpt-tiny-checkpointing-smoke/checkpoints/step_000200.pt",
+  "prompt": "First Citizen:",
+  "max_new_tokens": 40,
+  "decoding": "greedy",
+  "device": "mps",
+  "text": "First Citizen:\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+}

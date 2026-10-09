@@ -1,13 +1,14 @@
 # LLM Systems Lab
 
-My learning project: building a GPT in PyTorch and checking how its size,
-attention implementation and batch shape affect time and memory.
+GPT from scratch in PyTorch, with experiments on training time and memory.
+Built and measured on an M4 Mac. This is a learning project, not a training framework.
 
 ## What is implemented
 
 - GPT from scratch, with naive attention and optional SDPA
 - Training, single-batch overfitting and text generation
-- Hugging Face GPT-2 weight import
+- Gradient accumulation and optional block activation checkpointing
+- Hugging Face GPT-2 weight import and logits comparison
 - Synthetic time and memory benchmarks, with plots in notebooks
 
 ## Where things are
@@ -67,32 +68,31 @@ With our tiny model and large vocabulary, the LM head dominates this estimate.
 - [Depth scaling](experiments/01_depth_scaling/analysis.ipynb): L=1–16, predicted FLOPs vs measured time.
 - [Memory](experiments/02_memory_scaling/analysis.ipynb): doubling batch size or sequence length.
 - [Naive vs SDPA](experiments/03_attention/analysis.ipynb): time and memory, including longer sequences and forward with/without autograd.
+- [Training memory](experiments/05_training_memory/README.md): checkpointing stores less backward state; numerical checks and a short real training run.
 - `scripts/benchmarks/roofline.py`: small GEMM and copy measurements for a hardware reference.
 
-Times measured on MPS in FP32, three repeats each. SDPA uses the math backend
-with autograd in our setup. JSONs are in `experiments/`; checkpoints and scratch
-runs stay in ignored `artifacts/`. CUDA preparation is present, but CUDA results
-have not been measured yet.
+Depth, B/T memory and attention comparisons have three repeats on MPS in FP32.
+SDPA uses the math backend with autograd in our setup; it is not a FlashAttention result.
+Selected JSONs and figures are in `experiments/`; checkpoints and scratch runs stay
+in ignored `artifacts/`.
 
-![Depth scaling: time and relative cost across three runs](experiments/01_depth_scaling/figures/depth_mean.png)
+### Checkpointing result
 
-The depth notebook saves mean and median plots in its `figures/` folder.
-The [inference plotting script](scripts/benchmarks/plot_inference.py) will do the same
-for the next experiment, alongside a small CSV table.
+For B=4, T=128, D=256, L=8 and V=4096, checkpointing reduced saved activation
+storage from **81.19 to 13.00 MiB (about 84% less)**. Loss, gradients and one AdamW
+update matched the normal path at the same batch size. This is saved storage,
+not peak GPU memory or a measured speedup.
 
-## Next
+![Checkpointing: saved state and recomputation](experiments/05_training_memory/figures/checkpointing.png)
 
-1. [KV cache](experiments/04_kv_cache/README.md): implement cached forward in GPT,
-   then compare prefill/decode time and cache size as the context grows.
-   The no-cache benchmark is ready; cached forward is still to do.
-2. Compare a cache that grows with `torch.cat` against a preallocated buffer:
-   how much time do allocations and copies add?
-3. Try a small LLaMA-like model: RoPE, RMSNorm and SwiGLU, then GQA to explore
-   fewer K/V heads and a smaller cache. This is a future implementation.
+A separate 200-step Shakespeare run reached validation loss **5.99**, but still
+generated repeated newlines. It checks that the training pipeline works, not text quality.
 
-For training, the next useful comparison is different microbatches at the same
-effective batch size, followed by activation checkpointing.
-CUDA profiling tools are ready for a later GPU session.
+## Not measured yet
+
+CUDA benchmark/profiler scripts are prepared, but there are no CUDA results.
+KV-cache files are scaffolding; cached generation is not implemented.
+C++ operators and Tenstorrent kernels are a possible separate project, not a feature here.
 
 ## Learning resources
 

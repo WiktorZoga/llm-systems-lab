@@ -1,0 +1,68 @@
+{
+  "model": {
+    "vocab_size": 4096,
+    "context_length": 128,
+    "d_model": 256,
+    "num_layers": 8,
+    "num_heads": 4,
+    "dropout": 0.0,
+    "attention_backend": "naive"
+  },
+  "train": {
+    "batch_size": 4,
+    "micro_batch_size": 1,
+    "sequence_length": 128,
+    "learning_rate": 0.0003,
+    "seed": 2137
+  },
+  "device": "mps",
+  "pytorch": "2.14.0",
+  "dtype": "float32",
+  "optimizer": {
+    "name": "AdamW",
+    "lr": 0.0003,
+    "foreach": false,
+    "fused": false
+  },
+  "tolerances": {
+    "rtol": 0.0001,
+    "atol": 1e-05
+  },
+  "correctness": {
+    "checkpointing": {
+      "loss_abs_error": 0.0,
+      "parameters_checked": true,
+      "gradients_max_abs_error": 0.0,
+      "parameters_max_abs_error": 0.0
+    },
+    "accumulation": {
+      "loss_abs_error": 0.0,
+      "parameters_checked": false,
+      "gradients_max_abs_error": 1.6391277313232422e-07,
+      "parameters_max_abs_error": 5.631579551845789e-05
+    },
+    "combined": {
+      "loss_abs_error": 0.0,
+      "parameters_checked": true,
+      "gradients_max_abs_error": 0.0,
+      "parameters_max_abs_error": 0.0
+    }
+  },
+  "cases": [
+    {
+      "name": "normal",
+      "loss": 8.367631912231445,
+      "saved_activation_bytes": 85136388,
+      "forward_block_calls": 8,
+      "backward_block_calls": 0
+    },
+    {
+      "name": "checkpointed",
+      "loss": 8.367631912231445,
+      "saved_activation_bytes": 13636612,
+      "forward_block_calls": 8,
+      "backward_block_calls": 8
+    }
+  ],
+  "notes": "Saved activation bytes count unique storages saved during one full-batch forward, excluding pre-existing parameters, buffers and input/target tensors. This is not peak memory. Block calls count entries, not FLOPs; non-reentrant recomputation may stop early. All cases use identical weights/tokens and equal-sized microbatches. Combined compares checkpointed microbatches against ordinary microbatches. FP32 accumulation update errors are reported, not asserted; the float64 CPU run checks them strictly. No latency is measured."
+}
