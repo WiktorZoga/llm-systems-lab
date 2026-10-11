@@ -1,0 +1,96 @@
+{
+  "pytorch": "2.14.0",
+  "dtype": "float32",
+  "seed": 2137,
+  "batch_size": 2,
+  "reference_commit": "014f89a6885515aa5a938471ba36a547b11516b4",
+  "training_gradient_tolerances": {
+    "rtol": 0.0001,
+    "atol": 0.00001
+  },
+  "checks": [
+    {
+      "device": "cpu",
+      "model": {
+        "vocab_size": 64,
+        "context_length": 16,
+        "d_model": 32,
+        "num_layers": 2,
+        "num_heads": 4,
+        "dropout": 0,
+        "attention_backend": "naive"
+      },
+      "prefix_and_greedy": {
+        "passed": true,
+        "max_abs_error": 8.940696716308594e-8,
+        "rtol": 0.0001,
+        "atol": 0.00001,
+        "greedy_tokens_match": true,
+        "greedy_steps": 10
+      },
+      "shorter_request": {
+        "passed": true,
+        "max_abs_error": 8.940696716308594e-8,
+        "rtol": 0.0001,
+        "atol": 0.00001,
+        "greedy_tokens_match": true,
+        "greedy_steps": 4
+      },
+      "cache_contents_max_abs_error": 8.940696716308594e-8,
+      "ordinary_and_checkpointed_training_gradient_errors": [
+        0,
+        0
+      ],
+      "state_dict_compatible": true,
+      "old_forward_identical": true,
+      "context_boundary_checked": true,
+      "fresh_cache_and_no_mutation_checked": true,
+      "invalid_inputs_rejected": true
+    },
+    {
+      "device": "cpu",
+      "model": {
+        "vocab_size": 64,
+        "context_length": 16,
+        "d_model": 32,
+        "num_layers": 2,
+        "num_heads": 4,
+        "dropout": 0,
+        "attention_backend": "sdpa"
+      },
+      "prefix_and_greedy": {
+        "passed": true,
+        "max_abs_error": 5.960464477539063e-8,
+        "rtol": 0.0001,
+        "atol": 0.00001,
+        "greedy_tokens_match": true,
+        "greedy_steps": 10
+      },
+      "shorter_request": {
+        "passed": true,
+        "max_abs_error": 5.960464477539063e-8,
+        "rtol": 0.0001,
+        "atol": 0.00001,
+        "greedy_tokens_match": true,
+        "greedy_steps": 4
+      },
+      "cache_contents_max_abs_error": 1.1920928955078125e-7,
+      "ordinary_and_checkpointed_training_gradient_errors": [
+        0,
+        0
+      ],
+      "state_dict_compatible": true,
+      "old_forward_identical": true,
+      "context_boundary_checked": true,
+      "fresh_cache_and_no_mutation_checked": true,
+      "invalid_inputs_rejected": true
+    }
+  ],
+  "notes": "Small CPU/MPS checks against the pre-cache implementation. Ordinary logits/loss compared exactly. Checkpointed MPS backward can differ by about 7e-9 even between repeated unchanged-model runs. Each backend checks all prefixes of a 16-token sequence, 10 greedy steps, fresh shorter requests, full-prefix projected K/V, context overflow, empty input, multi-token continuation and inference-only use.",
+  "generation_cli": {
+    "checkpoint": "artifacts/runs/gpt-tiny-checkpointing-smoke/checkpoints/step_000200.pt",
+    "device": "cpu",
+    "cached_and_uncached_text_matched": true,
+    "empty_prompt_and_context_overflow_rejected": true
+  }
+}

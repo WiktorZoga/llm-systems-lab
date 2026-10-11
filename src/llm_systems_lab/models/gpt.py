@@ -34,15 +34,17 @@ class MultiHeadSelfAttention(nn.Module):
                 persistent=False,  # Recreated on construction; not learned weights.
             )
 
-    def forward(self, x):
+    def forward(self, x, past_key_value=None, *, use_cache=False):
         """
             x: [B, T, C] - batch_size, sequence_length, embedding_dim
 
             q, k, v: [B, nh, T, hd] - batch_size, number_of_heads, sequence_length, head_dim
 
-            att: [B, nh, T, T]
+            att: [B, nh, T, T + cached_length]
 
             y: [B, nh, T, hd] -> [B, T, C]
+
+            With use_cache=True, also return the accumulated (K, V).
         """
         B, T, C = x.size()
 
@@ -57,16 +59,27 @@ class MultiHeadSelfAttention(nn.Module):
         k = k.view(B, T, self.config.num_heads, head_dim).transpose(1, 2)
         v = v.view(B, T, self.config.num_heads, head_dim).transpose(1, 2)
 
+        past_length = 0
+        if past_key_value is not None:
+            if not use_cache or T != 1:
+                raise ValueError("A cached attention call needs use_cache=True and one new token")
+            past_k, past_v = past_key_value
+            past_length = past_k.shape[2]
+            k = torch.cat((past_k, k), dim=2)
+            v = torch.cat((past_v, v), dim=2)
+
         if self.config.attention_backend == "sdpa":
-            # SDPA supplies the same 1/sqrt(head_dim) scaling and causal mask.
-            # Both paths intentionally have no dropout in this baseline.
+            # Prefill is causal. One decode query may see all cached keys:
+            # SDPA's non-square is_causal mask would otherwise hide most of them.
             y = F.scaled_dot_product_attention(
-                q, k, v, is_causal=True, dropout_p=0.0,
+                q, k, v, is_causal=past_key_value is None, dropout_p=0.0,
             )
         else:
-            # Reference: explicitly materialize [B, num_heads, T, T] scores.
+            # Scores are [B, H, new_length, total_length]. Select the query's
+            # actual positions, not the first row of the mask during decode.
             att = (q @ k.mT) * (1.0 / math.sqrt(head_dim))
-            att = att.masked_fill(self.bias[:, :, :T, :T] == 0, float("-inf"))
+            mask = self.bias[:, :, past_length:past_length + T, :k.shape[2]]
+            att = att.masked_fill(mask == 0, float("-inf"))
             att = F.softmax(att, dim=-1)
             y = att @ v
 
@@ -76,6 +89,8 @@ class MultiHeadSelfAttention(nn.Module):
 
         y = self.c_proj(y)
 
+        if use_cache:
+            return y, (k, v)
         return y
 
 class MLP(nn.Module):
@@ -116,10 +131,16 @@ class Block(nn.Module):
 
         self.ln_2 = nn.LayerNorm(normalized_shape=config.d_model)
 
-    def forward(self, x):
+    def forward(self, x, past_key_value=None, *, use_cache=False):
         # Normalize before each sublayer, then preserve a residual connection.
-        x = x + self.attn(self.ln_1(x))
+        if use_cache:
+            attention, cache = self.attn(self.ln_1(x), past_key_value, use_cache=True)
+        else:
+            attention = self.attn(self.ln_1(x))
+        x = x + attention
         x = x + self.mlp(self.ln_2(x))
+        if use_cache:
+            return x, cache
         return x
 
 class GPT(nn.Module):
@@ -209,14 +230,39 @@ class GPT(nn.Module):
         return logits, loss
 
     def forward_cached(self, input_ids, past_key_values=None):
-        """Learning task: implement inference without recomputing the prefix.
+        """Prefill a prompt, then decode one new token without redoing the prefix.
 
         First call: input_ids contains the prompt; past_key_values is None.
         Later calls: input_ids contains one new token per batch item.
         Return logits [B, 1, vocab_size] and a list of (K, V) pairs, one
         per layer. Each K/V has shape [B, num_heads, cached_length, head_dim].
-        Keep forward() and the existing checkpoint parameter names working.
+        Use model.eval() together with torch.inference_mode() or no_grad().
         """
-        raise NotImplementedError(
-            "Implement GPT.forward_cached first; use --mode no_cache for the baseline."
-        )
+        if self.training or torch.is_grad_enabled():
+            raise ValueError("Cached forward requires eval mode and disabled gradients")
+        B, T = input_ids.shape
+        if B == 0 or T == 0:
+            raise ValueError("Cached forward needs a non-empty batch and prompt")
+
+        past_length = 0
+        if past_key_values is not None:
+            if len(past_key_values) != self.config.num_layers or T != 1:
+                raise ValueError("Use one K/V pair per layer and one new token per cached call")
+            past_length = past_key_values[0][0].shape[2]
+            expected = (B, self.config.num_heads, past_length, self.config.head_dim)
+            for key, value in past_key_values:
+                if key.shape != expected or value.shape != expected:
+                    raise ValueError(f"Expected cached K and V of shape {expected}")
+        if past_length + T > self.config.context_length:
+            raise ValueError("Prompt and cached continuation exceed context_length")
+
+        positions = torch.arange(past_length, past_length + T, device=input_ids.device)
+        x = self.transformer["wte"](input_ids) + self.transformer["wpe"](positions)
+        cache = []
+        for index, block in enumerate(self.transformer["h"]):
+            past = None if past_key_values is None else past_key_values[index]
+            x, present = block(x, past, use_cache=True)
+            cache.append(present)
+
+        x = self.transformer["ln_f"](x)
+        return self.lm_head(x[:, [-1], :]), cache

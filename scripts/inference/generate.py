@@ -54,15 +54,25 @@ def main(args):
 
     tokens = encoding.encode(prompt)
 
+    if args.use_cache:
+        if not tokens or args.max_new_tokens < 0:
+            raise ValueError("Use a non-empty prompt and non-negative max-new-tokens")
+        if len(tokens) + args.max_new_tokens > config.model.context_length:
+            raise ValueError("Cached generation needs prompt + max-new-tokens within context_length")
+
     tokens = torch.tensor(tokens, dtype=torch.long, device=device).unsqueeze(0)
 
     model.eval()
 
     with torch.inference_mode():
+        cache = None
         for _ in range(args.max_new_tokens):
-            input_ids = tokens[:, -config.model.context_length :]
-
-            logits, _ = model(input_ids)
+            if args.use_cache:
+                input_ids = tokens if cache is None else tokens[:, -1:]
+                logits, cache = model.forward_cached(input_ids, cache)
+            else:
+                input_ids = tokens[:, -config.model.context_length :]
+                logits, _ = model(input_ids)
 
             next_token = logits[:, -1, :].argmax(dim=-1, keepdim=True)
 
@@ -101,15 +111,17 @@ if __name__ == "__main__":
         "--max-new-tokens",
         type=int,
         default=20,
-        help="Maximum legnth (in tokens) of model responses."
+        help="Maximum length (in tokens) of model responses."
     )
 
     parser.add_argument(
         "--device",
         type=str,
         default="cpu",
-        help="Device you want to run inferce on."
+        help="Device to run inference on."
     )
+
+    parser.add_argument("--use-cache", action="store_true", help="Reuse K/V; do not crop the context.")
 
     args = parser.parse_args()
 

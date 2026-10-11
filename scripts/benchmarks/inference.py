@@ -1,4 +1,4 @@
-"""Prefill and decode on fixed token IDs. The no-cache baseline works immediately."""
+"""Compare full-prefix and cached inference on the same fixed token IDs."""
 
 import argparse
 import json
@@ -68,7 +68,24 @@ def check_cached_logits(model, tokens, prompt_length):
             if key.shape != shape or value.shape != shape:
                 raise ValueError(f"Expected K and V of shape {shape}")
         max_error = max(max_error, (actual - expected).abs().max().item())
-    return {"passed": True, "max_abs_error": max_error, "rtol": 1e-4, "atol": 1e-5}
+    # A separate greedy continuation starts with a fresh cache, outside timing.
+    full_tokens = tokens[:, :prompt_length].clone()
+    cached_tokens = full_tokens.clone()
+    cache = None
+    for _ in range(tokens.shape[1] - prompt_length):
+        expected, _ = model(full_tokens)
+        new_tokens = cached_tokens if cache is None else cached_tokens[:, -1:]
+        actual, cache = model.forward_cached(new_tokens, cache)
+        full_next = expected[:, -1].argmax(dim=-1, keepdim=True)
+        cached_next = actual[:, -1].argmax(dim=-1, keepdim=True)
+        if not torch.equal(full_next, cached_next):
+            raise ValueError("Cached and full-prefix greedy tokens disagree")
+        full_tokens = torch.cat((full_tokens, full_next), dim=1)
+        cached_tokens = torch.cat((cached_tokens, cached_next), dim=1)
+    return {
+        "passed": True, "max_abs_error": max_error, "rtol": 1e-4, "atol": 1e-5,
+        "greedy_tokens_match": True, "greedy_steps": tokens.shape[1] - prompt_length,
+    }
 
 
 def measure_sequence(model, inputs, device, use_cache):

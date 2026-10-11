@@ -1,15 +1,19 @@
 # LLM Systems Lab
 
-GPT from scratch in PyTorch, with experiments on training time and memory.
-Built and measured on an M4 Mac. This is a learning project, not a training framework.
+My learning project for implementing and understanding language models in PyTorch.
+Starting with a GPT-style Transformer: training it, importing GPT-2 weights,
+and following what happens during text generation. Local experiments run on an M4 Mac.
 
 ## What is implemented
 
 - GPT from scratch, with naive attention and optional SDPA
-- Training, single-batch overfitting and text generation
+- Training, validation, single-batch overfitting and greedy text generation
+- KV cache: prompt prefill followed by one-token decode
 - Gradient accumulation and optional block activation checkpointing
-- Hugging Face GPT-2 weight import and logits comparison
-- Synthetic time and memory benchmarks, with plots in notebooks
+- Hugging Face GPT-2 weight import with a last-token logits check
+
+GPT-2 import uses the same implementation with GPT-2 dimensions and pretrained weights;
+it is not a second independently implemented architecture.
 
 ## Where things are
 
@@ -22,7 +26,21 @@ configs/              settings for training and benchmarks
 experiments/          saved results, notebooks and figures
 ```
 
-Setup: `uv sync --locked`. For notebooks, use the repo's `.venv/bin/python`.
+## Try it
+
+```bash
+uv sync --locked
+uv run python scripts/data/prepare_data.py
+uv run python scripts/training/train.py --config gpt_tiny_checkpointing.toml
+uv run python scripts/inference/generate.py \
+    --config gpt_tiny_checkpointing.toml \
+    --checkpoint artifacts/runs/gpt-tiny-checkpointing-smoke/checkpoints/step_000200.pt \
+    --prompt 'First Citizen:' --max-new-tokens 20 --device mps --use-cache
+```
+
+This is a short training example, not a good language model yet. Remove `--use-cache`
+to recompute the prefix at every step. Cached generation must fit within the context limit.
+For notebooks, use the repo's `.venv/bin/python`.
 For a new training run, change `[run].name`; existing run folders and checkpoints are protected.
 `gpt2_hf.toml` only contains the model, tokenizer and output settings needed for import/generation.
 
@@ -30,6 +48,13 @@ For a new training run, change `[run].name`; existing run folders and checkpoint
 
 The model consists of token embeddings, positional embeddings, causal
 self-attention, MLP blocks, residual connections, and LayerNorm.
+
+```text
+token IDs → token + position embeddings → Transformer blocks → final LayerNorm → LM head
+```
+
+Prefill runs the whole prompt through this path and stores K/V for each layer.
+Decode runs only the new token through it, attending to the stored keys and values.
 
 ## Parameter count
 
@@ -63,7 +88,9 @@ $B$: batch size, $T$: sequence length. This counts the main matmuls, not
 softmax, normalization or loss. More FLOPs do not always mean more runtime.
 With our tiny model and large vocabulary, the LM head dominates this estimate.
 
-## Experiments
+</details>
+
+## Earlier explorations
 
 - [Depth scaling](experiments/01_depth_scaling/analysis.ipynb): L=1–16, predicted FLOPs vs measured time.
 - [Memory](experiments/02_memory_scaling/analysis.ipynb): doubling batch size or sequence length.
@@ -76,23 +103,21 @@ SDPA uses the math backend with autograd in our setup; it is not a FlashAttentio
 Selected JSONs and figures are in `experiments/`; checkpoints and scratch runs stay
 in ignored `artifacts/`.
 
-### Checkpointing result
-
-For B=4, T=128, D=256, L=8 and V=4096, checkpointing reduced saved activation
-storage from **81.19 to 13.00 MiB (about 84% less)**. Loss, gradients and one AdamW
-update matched the normal path at the same batch size. This is saved storage,
-not peak GPU memory or a measured speedup.
-
-![Checkpointing: saved state and recomputation](experiments/05_training_memory/figures/checkpointing.png)
-
-A separate 200-step Shakespeare run reached validation loss **5.99**, but still
-generated repeated newlines. It checks that the training pipeline works, not text quality.
+The checkpointing case saved about 84% less activation storage at the same batch size;
+that is not a peak-memory or speedup claim. The separate 200-step Shakespeare run
+reached validation loss 5.99 but generated repeated newlines.
 
 ## Not measured yet
 
 CUDA benchmark/profiler scripts are prepared, but there are no CUDA results.
-KV-cache files are scaffolding; cached generation is not implemented.
-C++ operators and Tenstorrent kernels are a possible separate project, not a feature here.
+Fixed-capacity caches and further architectures are future work.
+There are no Tenstorrent results in this repo; hardware-specific work stays separate.
+
+## Learning with agents
+
+I use coding agents for implementation help, code review and experiment plumbing.
+The goal is to work through the code and understand the results, not to claim every
+line was written unaided. [AGENTS.md](AGENTS.md) describes how we keep the project simple.
 
 ## Learning resources
 
@@ -105,4 +130,6 @@ I am currently working through:
 ## Acknowledgements
 
 This project is inspired by GPT-2, nanoGPT, and educational materials by
-Andrej Karpathy.
+Andrej Karpathy. The [Cache Me If You Can workshop](https://github.com/mdragulaTT/cache-me-if-you-can)
+by Maciek Draguła and Nathan Maurice helped guide the prefill/decode and KV-cache work.
+The workshop's TTNN code and hardware results are separate from this PyTorch implementation.

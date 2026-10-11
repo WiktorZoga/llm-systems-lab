@@ -20,7 +20,7 @@ def main(args):
                "decode_median_ms", "tokens_per_second", "cache_MiB"]
     print(table[columns].round(3).to_string())
 
-    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5), sharey=True)
     table[["prefill_mean_ms", "prefill_median_ms"]].plot.bar(
         ax=axes[0], rot=35, fontsize=8,
     )
