@@ -4,6 +4,8 @@ My learning project for implementing and understanding language models in PyTorc
 Starting with a GPT-style Transformer: training it, importing GPT-2 weights,
 and following what happens during text generation. Local experiments run on an M4 Mac.
 
+Recently, I’ve got a Tenstorrent Wormhole 150d chip. Soon I will be running some experiments on it!
+
 ## What is implemented
 
 - GPT from scratch, with naive attention and optional SDPA
